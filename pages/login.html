@@ -1,0 +1,19 @@
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Login IMV</title></head>
+<body>
+  <h2>Login</h2>
+  <input id="email" placeholder="email">
+  <input id="senha" type="password" placeholder="senha">
+  <button onclick="entrar()">Entrar</button>
+
+  <script type="module">
+    import { login } from "../js/auth-firebase.js";
+    window.entrar = async ()=>{
+      await login(email.value,senha.value);
+      location.href="portal.html";
+    }
+  </script>
+</body>
+</html>
