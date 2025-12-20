@@ -1,1 +1,0 @@
-Cole suas chaves Firebase em js/firebase.js
