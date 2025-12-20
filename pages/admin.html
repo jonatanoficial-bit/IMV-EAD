@@ -1,1 +1,60 @@
-<h1>Painel Administrativo IMV</h1>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel Admin | IMV</title>
+  <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+
+<header>
+  <h1>Instituto Musical Vale — Administração</h1>
+  <button id="logoutBtn">Sair</button>
+</header>
+
+<nav>
+  <button data-tab="convites">Convites</button>
+  <button data-tab="turmas">Turmas</button>
+  <button data-tab="matriculas">Matrículas</button>
+  <button data-tab="certificados">Certificados</button>
+</nav>
+
+<main>
+
+<section id="convites" class="tab">
+  <h2>Criar Convite</h2>
+  <input id="inviteName" placeholder="Nome">
+  <input id="inviteEmail" placeholder="Email">
+  <select id="inviteRole">
+    <option value="student">Aluno</option>
+    <option value="teacher">Professor</option>
+    <option value="staff">Funcionário</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button onclick="createInvite()">Gerar Convite</button>
+  <pre id="inviteResult"></pre>
+</section>
+
+<section id="turmas" class="tab hidden">
+  <h2>Criar Turma</h2>
+  <input id="className" placeholder="Nome da Turma">
+  <input id="classCourse" placeholder="Curso (ex: canto)">
+  <input id="classHours" type="number" placeholder="Carga Horária">
+  <button onclick="createClass()">Criar Turma</button>
+</section>
+
+<section id="matriculas" class="tab hidden">
+  <h2>Matrículas</h2>
+  <p>Gestão de matrículas (fase 2)</p>
+</section>
+
+<section id="certificados" class="tab hidden">
+  <h2>Certificados</h2>
+  <p>Emissão automática disponível após avaliação</p>
+</section>
+
+</main>
+
+<script type="module" src="../js/admin.js"></script>
+</body>
+</html>
