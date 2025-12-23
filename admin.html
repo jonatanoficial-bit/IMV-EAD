@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="css/styles.css" />
 
   <style>
-    /* Complementos leves para abas (sem depender de mudar seu CSS) */
     .tabsBar{
       display:flex; gap:10px; flex-wrap:wrap;
       padding: 12px 16px;
@@ -78,6 +77,7 @@
     .btn.inline{ width:auto !important; }
     .muted{ color: rgba(255,255,255,.65); font-size: 13px; line-height:1.5; }
     .miniWarn{ font-size:12px; opacity:.78; line-height:1.45; margin-top:8px; }
+    select.input{ appearance:none; }
   </style>
 </head>
 
@@ -112,11 +112,11 @@
         <button class="tabBtn" data-tab="tab-notices">Avisos</button>
       </div>
 
-      <!-- CADASTROS (mantém aluno/professor + lista de usuários) -->
+      <!-- CADASTROS -->
       <div class="section tabPanel active" id="tab-users">
         <h2>Cadastros</h2>
         <p class="muted">
-          Aqui você cria contas (Auth) e perfis (Firestore) de <b>Alunos</b> e <b>Professores</b>, e vê a lista geral.
+          Crie contas (Auth) e perfis (Firestore) de <b>Alunos</b> e <b>Professores</b>, e veja a lista geral.
         </p>
 
         <div class="hr"></div>
@@ -271,16 +271,86 @@
         </div>
       </div>
 
-      <!-- TURMAS -->
+      <!-- TURMAS (AGORA FUNCIONA) -->
       <div class="section tabPanel" id="tab-classes">
         <h2>Turmas</h2>
         <p class="muted">
-          Esta aba prepara o módulo de turmas. Na próxima etapa vamos habilitar criação completa: curso + professor + dias/horário + alunos.
+          Crie turmas vinculando <b>Curso + Professor</b>, definindo modalidade e horário.
         </p>
-        <div class="item" style="white-space:pre-wrap">
-✅ Estrutura definida (Firestore):
-- classes/{classId}: courseId, teacherId, title, modality, schedule, active
-- class_students (via enrollments)
+
+        <div class="hr"></div>
+
+        <div class="split">
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Nova turma</h2>
+              <div class="row">
+                <label>
+                  <span class="badge">Nome da turma</span>
+                  <input id="clTitle" class="input" placeholder="Ex: Canto Coletivo • Sábados" />
+                </label>
+
+                <label>
+                  <span class="badge">Curso</span>
+                  <select id="clCourse" class="input"></select>
+                </label>
+
+                <label>
+                  <span class="badge">Professor</span>
+                  <select id="clTeacher" class="input"></select>
+                </label>
+
+                <label>
+                  <span class="badge">Modalidade</span>
+                  <input id="clModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" />
+                </label>
+
+                <label>
+                  <span class="badge">Horário (texto livre)</span>
+                  <input id="clSchedule" class="input" placeholder="Ex: 2 sábados/mês • 09:00–10:30" />
+                </label>
+
+                <button id="btnCreateClass" class="btn primary" type="button">Salvar turma</button>
+                <div id="outClass" class="item" style="display:none; white-space:pre-wrap"></div>
+
+                <div class="miniWarn">
+                  Dica: primeiro cadastre cursos e professores. Depois crie as turmas aqui.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Lista de turmas</h2>
+              <div class="actionsRow" style="margin: 0 0 10px;">
+                <button id="btnReloadClasses" class="btn inline" type="button">Recarregar</button>
+                <span class="pill">Total: <b id="classesCount">0</b></span>
+              </div>
+
+              <div style="overflow:auto;">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Turma</th>
+                      <th>Curso</th>
+                      <th>Professor</th>
+                      <th>Horário</th>
+                      <th>Ativo</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="classesTbody">
+                    <tr><td colspan="6" class="muted">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="miniWarn">
+                Próximo passo: matrícula de alunos na turma e chamada do professor.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -288,12 +358,11 @@
       <div class="section tabPanel" id="tab-enroll">
         <h2>Matrículas</h2>
         <p class="muted">
-          Aqui vamos matricular aluno em curso/turma, com status e data de início.
+          Próxima etapa: matricular aluno em curso/turma com status e data de início.
         </p>
         <div class="item" style="white-space:pre-wrap">
-✅ Estrutura definida (Firestore):
-- enrollments/{enrollmentId}: studentId, courseId, classId (opcional), status, startDate, createdAt
-Próximo: tela para criar e listar por aluno/curso.
+✅ Estrutura (Firestore):
+- enrollments/{enrollmentId}: studentId, courseId, classId(opcional), status, startDate, createdAt
         </div>
       </div>
 
@@ -301,12 +370,11 @@ Próximo: tela para criar e listar por aluno/curso.
       <div class="section tabPanel" id="tab-pay">
         <h2>Financeiro</h2>
         <p class="muted">
-          Mensalidades, histórico e forma de pagamento (Pix à vista / Pix parcelado). Nesta etapa deixamos a base pronta.
+          Próxima etapa: mensalidades, histórico e forma de pagamento (Pix à vista / Pix parcelado).
         </p>
         <div class="item" style="white-space:pre-wrap">
-✅ Estrutura definida (Firestore):
+✅ Estrutura (Firestore):
 - payments/{paymentId}: studentId, enrollmentId, dueDate, amount, status(pendente/pago), method(pix_avista/pix_parcelado), paidAt
-Próximo: registrar pagamentos e gerar histórico por aluno.
         </div>
       </div>
 
@@ -378,7 +446,7 @@ Próximo: registrar pagamentos e gerar histórico por aluno.
 
     </section>
 
-    <div class="footer">IMV • Admin • Etapa 2 (Cadastros + Cursos + Avisos)</div>
+    <div class="footer">IMV • Admin • Turmas (Etapa A)</div>
   </main>
 
   <script type="module" src="js/admin.js"></script>
