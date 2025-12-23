@@ -26,10 +26,12 @@
         <div class="section">
           <h1>Bem-vindo ao Portal IMV</h1>
           <p>
-            Este é o início do seu app escolar. Aqui você vai ter: cursos, matrículas,
-            presença, notas, materiais e financeiro — tudo com login e controle de acesso.
+            Este é o início do seu app escolar. Aqui você vai ter:
+            cursos, matrículas, presença, notas, materiais e financeiro — tudo com login.
           </p>
+
           <div class="hr"></div>
+
           <div class="list">
             <div class="item">
               <strong>Admin</strong>
@@ -63,15 +65,16 @@
             </label>
 
             <button id="btnLogin" class="btn primary">Entrar</button>
+            <button id="btnClear" class="btn small" type="button">Limpar</button>
 
-            <div id="msg" class="item" style="display:none"></div>
+            <div id="msg" class="item" style="display:none; white-space:pre-wrap"></div>
           </div>
 
           <div class="hr"></div>
 
           <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
-            ⚠️ Primeiro acesso: você precisa criar pelo menos <b>1 usuário Admin</b> no Firebase Authentication.
-            Depois, no Firestore, criaremos o perfil com <b>role: admin</b>.
+            Se o site “piscar”, é porque o usuário logou mas não conseguiu validar o <b>role</b> no Firestore.
+            Agora o sistema vai mostrar o motivo e fazer logout automático (sem loop).
           </p>
         </div>
       </section>
@@ -81,8 +84,8 @@
   </main>
 
   <script type="module">
-    import { login, watchAuth } from "./js/auth.js";
-    import { redirectByRole } from "./js/router.js";
+    import { login, watchAuth, logout } from "./js/auth.js";
+    import { redirectByRoleSafe } from "./js/router.js";
 
     const $ = (id) => document.getElementById(id);
     const msg = $("msg");
@@ -94,9 +97,31 @@
       msg.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
     }
 
-    // Se já estiver logado, manda pro painel certo
+    function clearForm(){
+      $("email").value = "";
+      $("password").value = "";
+      msg.style.display = "none";
+    }
+
+    $("btnClear").addEventListener("click", clearForm);
+
+    // Se já estiver logado, tenta redirecionar com segurança.
+    // Se faltar role ou Firestore negar, NÃO entra em loop: mostra mensagem e desloga.
     watchAuth(async (user) => {
-      if (user) await redirectByRole(user);
+      if (!user) return;
+
+      showMessage("Você já está logado. Validando perfil…");
+      const res = await redirectByRoleSafe(user);
+
+      if (!res.ok) {
+        let reason = "Falha ao validar perfil.";
+        if (res.reason === "missing_role") reason = "Você está logado, mas seu documento em Firestore users/{UID} não tem role.";
+        if (res.reason === "firestore_error") reason = "Erro/permiteção ao ler Firestore (rules/domínio).";
+        if (res.reason === "unknown_role") reason = "Role inválido. Use: admin / teacher / student.";
+
+        showMessage(reason + "\n\nVou sair para você conseguir digitar novamente.\nUID: " + user.uid, true);
+        await logout();
+      }
     });
 
     $("btnLogin").addEventListener("click", async () => {
@@ -108,13 +133,33 @@
         return;
       }
 
+      $("btnLogin").disabled = true;
+      showMessage("Entrando…");
+
       try {
-        await login(email, password);
-        showMessage("Login realizado. Redirecionando…");
-        // redirect acontece pelo watchAuth
+        const user = await login(email, password);
+        showMessage("Login realizado. Validando perfil…");
+
+        const res = await redirectByRoleSafe(user);
+
+        if (!res.ok) {
+          let reason = "Falha ao validar perfil.";
+          if (res.reason === "missing_role") reason = "Usuário logado, mas sem role no Firestore (users/{UID}).";
+          if (res.reason === "firestore_error") reason = "Firestore bloqueou leitura (Rules).";
+          if (res.reason === "unknown_role") reason = "Role inválido. Use: admin / teacher / student.";
+
+          showMessage(reason + "\n\nVou sair para você tentar novamente.\nUID: " + user.uid, true);
+          await logout();
+          $("btnLogin").disabled = false;
+          return;
+        }
+
+        // Se ok, a navegação já acontece.
       } catch (e) {
         console.error(e);
         showMessage("Erro ao entrar: " + (e?.message || e), true);
+      } finally {
+        $("btnLogin").disabled = false;
       }
     });
   </script>
