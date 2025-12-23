@@ -3,14 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IMV EAD • Login</title>
+  <title>IMV • Portal</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b1220">
+
+  <link rel="icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="inner">
       <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
+        <div class="logoWrap">
+          <img src="assets/logo-imv.png" alt="Instituto Musical Vale">
+        </div>
         <div class="title">
           <strong>IMV • Instituto Musical Vale</strong>
           <span>Portal (Aluno • Professor • Admin)</span>
@@ -22,12 +29,11 @@
 
   <main class="container">
     <div class="grid">
-      <section class="card hero">
+      <section class="card">
         <div class="section">
           <h1>Bem-vindo ao Portal IMV</h1>
           <p>
-            Este é o início do seu app escolar. Aqui você vai ter:
-            cursos, matrículas, presença, notas, materiais e financeiro — tudo com login.
+            Cursos, matrículas, presença, notas, materiais, biblioteca e financeiro — tudo com login e controle de acesso.
           </p>
 
           <div class="hr"></div>
@@ -69,13 +75,6 @@
 
             <div id="msg" class="item" style="display:none; white-space:pre-wrap"></div>
           </div>
-
-          <div class="hr"></div>
-
-          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
-            Se o site “piscar”, é porque o usuário logou mas não conseguiu validar o <b>role</b> no Firestore.
-            Agora o sistema vai mostrar o motivo e fazer logout automático (sem loop).
-          </p>
         </div>
       </section>
     </div>
@@ -86,6 +85,11 @@
   <script type="module">
     import { login, watchAuth, logout } from "./js/auth.js";
     import { redirectByRoleSafe } from "./js/router.js";
+
+    // PWA
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    }
 
     const $ = (id) => document.getElementById(id);
     const msg = $("msg");
@@ -102,24 +106,14 @@
       $("password").value = "";
       msg.style.display = "none";
     }
-
     $("btnClear").addEventListener("click", clearForm);
 
-    // Se já estiver logado, tenta redirecionar com segurança.
-    // Se faltar role ou Firestore negar, NÃO entra em loop: mostra mensagem e desloga.
     watchAuth(async (user) => {
       if (!user) return;
-
       showMessage("Você já está logado. Validando perfil…");
       const res = await redirectByRoleSafe(user);
-
       if (!res.ok) {
-        let reason = "Falha ao validar perfil.";
-        if (res.reason === "missing_role") reason = "Você está logado, mas seu documento em Firestore users/{UID} não tem role.";
-        if (res.reason === "firestore_error") reason = "Erro/permiteção ao ler Firestore (rules/domínio).";
-        if (res.reason === "unknown_role") reason = "Role inválido. Use: admin / teacher / student.";
-
-        showMessage(reason + "\n\nVou sair para você conseguir digitar novamente.\nUID: " + user.uid, true);
+        showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
         await logout();
       }
     });
@@ -128,10 +122,7 @@
       const email = $("email").value.trim();
       const password = $("password").value;
 
-      if (!email || !password) {
-        showMessage("Preencha email e senha.", true);
-        return;
-      }
+      if (!email || !password) { showMessage("Preencha email e senha.", true); return; }
 
       $("btnLogin").disabled = true;
       showMessage("Entrando…");
@@ -139,24 +130,13 @@
       try {
         const user = await login(email, password);
         showMessage("Login realizado. Validando perfil…");
-
         const res = await redirectByRoleSafe(user);
 
         if (!res.ok) {
-          let reason = "Falha ao validar perfil.";
-          if (res.reason === "missing_role") reason = "Usuário logado, mas sem role no Firestore (users/{UID}).";
-          if (res.reason === "firestore_error") reason = "Firestore bloqueou leitura (Rules).";
-          if (res.reason === "unknown_role") reason = "Role inválido. Use: admin / teacher / student.";
-
-          showMessage(reason + "\n\nVou sair para você tentar novamente.\nUID: " + user.uid, true);
+          showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
           await logout();
-          $("btnLogin").disabled = false;
-          return;
         }
-
-        // Se ok, a navegação já acontece.
       } catch (e) {
-        console.error(e);
         showMessage("Erro ao entrar: " + (e?.message || e), true);
       } finally {
         $("btnLogin").disabled = false;
