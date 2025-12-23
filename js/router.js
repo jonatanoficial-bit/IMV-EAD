@@ -1,14 +1,19 @@
 // js/router.js
 import { watchAuth, getUserRole } from "./auth.js";
 
-const BASE = "/IMV-EAD/"; // porque seu site é https://jonatanoficial-bit.github.io/IMV-EAD/
+/**
+ * ATENÇÃO:
+ * O BASE precisa ser EXATAMENTE o nome do repositório no GitHub Pages.
+ * Seu site está em:
+ * https://jonatanoficial-bit.github.io/IMV-EA/
+ */
+const BASE = "/IMV-EA/";
 
 export function go(path) {
   window.location.href = BASE + path.replace(/^\//, "");
 }
 
 export function requireAuth(allowedRoles = []) {
-  // Protege páginas (admin.html, teacher.html, student.html)
   watchAuth(async (user) => {
     if (!user) {
       go("index.html");
@@ -16,14 +21,17 @@ export function requireAuth(allowedRoles = []) {
     }
 
     const role = await getUserRole(user.uid);
+
     if (!role) {
-      alert("Seu usuário ainda não tem perfil/role no sistema. Fale com o admin.");
+      alert("Usuário sem perfil no sistema. Fale com o administrador.");
+      await import("./auth.js").then(m => m.logout());
       go("index.html");
       return;
     }
 
     if (allowedRoles.length && !allowedRoles.includes(role)) {
-      alert("Acesso negado para este perfil.");
+      alert("Acesso não autorizado para este perfil.");
+      await import("./auth.js").then(m => m.logout());
       go("index.html");
     }
   });
@@ -31,6 +39,7 @@ export function requireAuth(allowedRoles = []) {
 
 export async function redirectByRole(user) {
   const role = await getUserRole(user.uid);
+
   if (role === "admin") go("admin.html");
   else if (role === "teacher") go("teacher.html");
   else if (role === "student") go("student.html");
