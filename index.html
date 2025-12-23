@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IMV EAD • Login</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="title">
+          <strong>IMV • Instituto Musical Vale</strong>
+          <span>Portal (Aluno • Professor • Admin)</span>
+        </div>
+      </div>
+      <span class="badge">Mobile-first • GitHub Pages</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="grid">
+      <section class="card hero">
+        <div class="section">
+          <h1>Bem-vindo ao Portal IMV</h1>
+          <p>
+            Este é o início do seu app escolar. Aqui você vai ter: cursos, matrículas,
+            presença, notas, materiais e financeiro — tudo com login e controle de acesso.
+          </p>
+          <div class="hr"></div>
+          <div class="list">
+            <div class="item">
+              <strong>Admin</strong>
+              <span>Gestão de alunos, matrículas, financeiro, contratos, professores.</span>
+            </div>
+            <div class="item">
+              <strong>Professor (prestador)</strong>
+              <span>Chamada, notas, comentários, turmas e materiais.</span>
+            </div>
+            <div class="item">
+              <strong>Aluno</strong>
+              <span>Materiais, biblioteca, pagamentos e histórico.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section">
+          <h2>Entrar</h2>
+
+          <div class="row">
+            <label>
+              <span class="badge">Email</span>
+              <input id="email" class="input" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" />
+            </label>
+
+            <label>
+              <span class="badge">Senha</span>
+              <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+            </label>
+
+            <button id="btnLogin" class="btn primary">Entrar</button>
+
+            <div id="msg" class="item" style="display:none"></div>
+          </div>
+
+          <div class="hr"></div>
+
+          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
+            ⚠️ Primeiro acesso: você precisa criar pelo menos <b>1 usuário Admin</b> no Firebase Authentication.
+            Depois, no Firestore, criaremos o perfil com <b>role: admin</b>.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">© IMV • Portal EAD • Versão inicial</div>
+  </main>
+
+  <script type="module">
+    import { login, watchAuth } from "./js/auth.js";
+    import { redirectByRole } from "./js/router.js";
+
+    const $ = (id) => document.getElementById(id);
+    const msg = $("msg");
+
+    function showMessage(text, isError=false){
+      msg.style.display = "block";
+      msg.textContent = text;
+      msg.style.borderColor = isError ? "rgba(255,92,122,.45)" : "rgba(72,213,151,.35)";
+      msg.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
+    }
+
+    // Se já estiver logado, manda pro painel certo
+    watchAuth(async (user) => {
+      if (user) await redirectByRole(user);
+    });
+
+    $("btnLogin").addEventListener("click", async () => {
+      const email = $("email").value.trim();
+      const password = $("password").value;
+
+      if (!email || !password) {
+        showMessage("Preencha email e senha.", true);
+        return;
+      }
+
+      try {
+        await login(email, password);
+        showMessage("Login realizado. Redirecionando…");
+        // redirect acontece pelo watchAuth
+      } catch (e) {
+        console.error(e);
+        showMessage("Erro ao entrar: " + (e?.message || e), true);
+      }
+    });
+  </script>
+</body>
+</html>
