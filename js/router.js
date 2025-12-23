@@ -2,15 +2,29 @@
 import { watchAuth, getUserRole } from "./auth.js";
 
 /**
- * ATENÇÃO:
- * O BASE precisa ser EXATAMENTE o nome do repositório no GitHub Pages.
- * Seu site está em:
- * https://jonatanoficial-bit.github.io/IMV-EA/
+ * Base dinâmica:
+ * - Em GitHub Pages com repo: /NOME-DO-REPO/
+ * - Em domínio raiz: /
+ * Assim NÃO quebra se o repo mudar de nome e evita loop/piscar.
  */
-const BASE = "/IMV-EA/";
+function detectBasePath() {
+  const p = window.location.pathname || "/";
+  // Ex.: "/IMV-EAD/index.html" => ["", "IMV-EAD", "index.html"]
+  const parts = p.split("/").filter(Boolean);
+
+  // Se estiver em github.io e tiver um primeiro segmento, assume ser o repo
+  const isGithubPages = window.location.hostname.endsWith("github.io");
+  if (isGithubPages && parts.length >= 1) return `/${parts[0]}/`;
+
+  // Caso contrário (domínio raiz), usa "/"
+  return "/";
+}
+
+const BASE = detectBasePath();
 
 export function go(path) {
-  window.location.href = BASE + path.replace(/^\//, "");
+  const clean = path.replace(/^\//, "");
+  window.location.href = BASE + clean;
 }
 
 export function requireAuth(allowedRoles = []) {
@@ -23,16 +37,15 @@ export function requireAuth(allowedRoles = []) {
     const role = await getUserRole(user.uid);
 
     if (!role) {
-      alert("Usuário sem perfil no sistema. Fale com o administrador.");
-      await import("./auth.js").then(m => m.logout());
+      alert("Usuário sem perfil no sistema (role). Fale com o administrador.");
       go("index.html");
       return;
     }
 
     if (allowedRoles.length && !allowedRoles.includes(role)) {
       alert("Acesso não autorizado para este perfil.");
-      await import("./auth.js").then(m => m.logout());
       go("index.html");
+      return;
     }
   });
 }
