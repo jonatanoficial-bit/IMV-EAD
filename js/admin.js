@@ -1,5 +1,9 @@
 // js/admin.js
 // Admin: Cadastros + Cursos + Turmas + Matrículas + Avisos
+// Correções importantes:
+// - remove where+orderBy que exigia index (ordenamos no JS)
+// - evita query duplicada com 2 where (exigia index) usando filtro local
+// - mensagens de erro mais claras ao cadastrar usuários
 
 import { auth, db } from "./firebase.js";
 
@@ -70,6 +74,19 @@ function generateRandomPassword(length = 10) {
   return out;
 }
 
+function prettyAuthError(e) {
+  const msg = (e?.message || String(e || "")).toLowerCase();
+
+  if (msg.includes("email-already-in-use")) return "Este email já está em uso (já existe um usuário com este email).";
+  if (msg.includes("invalid-email")) return "Email inválido.";
+  if (msg.includes("weak-password")) return "Senha fraca. (Aqui é randômica, mas pode ter falhado. Tente de novo.)";
+  if (msg.includes("operation-not-allowed")) return "Email/Senha não está habilitado no Firebase Authentication (Console → Authentication → Sign-in method).";
+  if (msg.includes("network")) return "Falha de rede. Tente novamente em uma conexão melhor.";
+  if (msg.includes("requires an index")) return "Firestore pediu um índice. (Esta versão do admin.js já evita isso; se persistir, me mande print do erro.)";
+
+  return (e?.message || String(e));
+}
+
 async function logout() {
   await signOut(auth);
   window.location.href = "./index.html";
@@ -90,10 +107,10 @@ function formatMoney(n) {
   try { return Number(n || 0).toFixed(2).replace(".", ","); }
   catch { return "0,00"; }
 }
-
-function fmtDateInputToISO(dateStr) {
-  // date input vem "YYYY-MM-DD" (sem timezone). Guardamos assim mesmo.
-  return dateStr || "";
+function safeNameSort(a, b) {
+  const an = (a?.name || a?.email || "").toString().toLowerCase();
+  const bn = (b?.name || b?.email || "").toString().toLowerCase();
+  return an.localeCompare(bn);
 }
 
 // ========= Tabs =========
@@ -104,6 +121,16 @@ function setupTabs() {
   function openTab(tabId) {
     btns.forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
     panels.forEach(p => p.classList.toggle("active", p.id === tabId));
+
+    // Sempre que abrir Matrículas, atualizar selects (pra não ficar “parado”)
+    if (tabId === "tab-enroll") {
+      Promise.allSettled([loadStudentsForSelect(), loadClassesForSelect(), loadEnrollments()]);
+    }
+
+    // Sempre que abrir Turmas, atualizar selects
+    if (tabId === "tab-classes") {
+      Promise.allSettled([loadCoursesForSelect(), loadTeachersForSelect(), loadClasses()]);
+    }
   }
 
   btns.forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
@@ -236,8 +263,8 @@ async function createCourse() {
   };
 
   const ref = await addDoc(collection(db, "courses"), payload);
-
   showBox(out, `✅ Curso salvo!\nID: ${ref.id}\nNome: ${name}`);
+
   $("cName").value = "";
   $("cCategory").value = "";
   $("cModality").value = "";
@@ -264,16 +291,13 @@ async function loadCourses() {
   snap.forEach(docSnap => {
     const d = docSnap.data() || {};
     const id = docSnap.id;
-    const name = d.name || "(sem nome)";
-    const modality = d.modality || "";
-    const price = typeof d.price === "number" ? d.price : 0;
     const active = d.active === true;
 
     rows.push(`
       <tr>
-        <td><b>${escapeHtml(name)}</b><br><span class="muted">${escapeHtml(d.category || "")}</span></td>
-        <td>${escapeHtml(modality)}</td>
-        <td>R$ ${formatMoney(price)}</td>
+        <td><b>${escapeHtml(d.name || "(sem nome)")}</b><br><span class="muted">${escapeHtml(d.category || "")}</span></td>
+        <td>${escapeHtml(d.modality || "")}</td>
+        <td>R$ ${formatMoney(d.price || 0)}</td>
         <td>${active ? "✅" : "⛔"}</td>
         <td>
           <div class="actionsRow">
@@ -307,24 +331,25 @@ async function toggleCourseActive(courseId) {
   await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
 }
 
-// ========= Select helpers =========
+// ========= Select helpers (SEM ORDERBY no Firestore -> sem índice) =========
 async function loadCoursesForSelect() {
   const sel = $("clCourse");
   if (!sel) return;
 
   sel.innerHTML = `<option value="">Carregando cursos…</option>`;
-  const qy = query(collection(db, "courses"), orderBy("name", "asc"));
-  const snap = await getDocs(qy);
 
-  const options = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
+  const snap = await getDocs(collection(db, "courses"));
+  const list = [];
+  snap.forEach(s => {
+    const d = s.data() || {};
     if (d.active !== true) return;
-    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(d.name || docSnap.id)}</option>`);
+    list.push({ id: s.id, name: d.name || s.id });
   });
 
-  sel.innerHTML = options.length
-    ? `<option value="">Selecione um curso</option>${options.join("")}`
+  list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+  sel.innerHTML = list.length
+    ? `<option value="">Selecione um curso</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
     : `<option value="">Nenhum curso ativo</option>`;
 }
 
@@ -333,18 +358,21 @@ async function loadTeachersForSelect() {
   if (!sel) return;
 
   sel.innerHTML = `<option value="">Carregando professores…</option>`;
-  const qy = query(collection(db, "users"), where("role", "==", "teacher"), orderBy("name", "asc"));
+
+  // ✅ sem orderBy para não pedir índice
+  const qy = query(collection(db, "users"), where("role", "==", "teacher"));
   const snap = await getDocs(qy);
 
-  const options = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
+  const list = [];
+  snap.forEach(s => {
+    const d = s.data() || {};
     if (d.active !== true) return;
-    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(d.name || d.email || docSnap.id)}</option>`);
+    list.push({ id: s.id, name: d.name || d.email || s.id, email: d.email || "" });
   });
+  list.sort(safeNameSort);
 
-  sel.innerHTML = options.length
-    ? `<option value="">Selecione um professor</option>${options.join("")}`
+  sel.innerHTML = list.length
+    ? `<option value="">Selecione um professor</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
     : `<option value="">Nenhum professor ativo</option>`;
 }
 
@@ -353,18 +381,21 @@ async function loadStudentsForSelect() {
   if (!sel) return;
 
   sel.innerHTML = `<option value="">Carregando alunos…</option>`;
-  const qy = query(collection(db, "users"), where("role", "==", "student"), orderBy("name", "asc"));
+
+  // ✅ sem orderBy para não pedir índice
+  const qy = query(collection(db, "users"), where("role", "==", "student"));
   const snap = await getDocs(qy);
 
-  const options = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
+  const list = [];
+  snap.forEach(s => {
+    const d = s.data() || {};
     if (d.active !== true) return;
-    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(d.name || d.email || docSnap.id)}</option>`);
+    list.push({ id: s.id, name: d.name || d.email || s.id, email: d.email || "" });
   });
+  list.sort(safeNameSort);
 
-  sel.innerHTML = options.length
-    ? `<option value="">Selecione um aluno</option>${options.join("")}`
+  sel.innerHTML = list.length
+    ? `<option value="">Selecione um aluno</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
     : `<option value="">Nenhum aluno ativo</option>`;
 }
 
@@ -373,19 +404,20 @@ async function loadClassesForSelect() {
   if (!sel) return;
 
   sel.innerHTML = `<option value="">Carregando turmas…</option>`;
-  const qy = query(collection(db, "classes"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(qy);
 
-  const options = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
+  const snap = await getDocs(collection(db, "classes"));
+  const list = [];
+  snap.forEach(s => {
+    const d = s.data() || {};
     if (d.active !== true) return;
-    const label = `${d.title || docSnap.id} • ${d.courseName || ""} • ${d.teacherName || ""}`.trim();
-    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(label)}</option>`);
+    const label = `${d.title || s.id} • ${d.courseName || ""} • ${d.teacherName || ""}`.trim();
+    list.push({ id: s.id, label });
   });
 
-  sel.innerHTML = options.length
-    ? `<option value="">Selecione uma turma</option>${options.join("")}`
+  list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+
+  sel.innerHTML = list.length
+    ? `<option value="">Selecione uma turma</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.label)}</option>`).join("")
     : `<option value="">Nenhuma turma ativa</option>`;
 }
 
@@ -430,6 +462,7 @@ async function createClass() {
   const ref = await addDoc(collection(db, "classes"), payload);
 
   showBox(out, `✅ Turma salva!\nID: ${ref.id}\nTurma: ${title}`);
+
   $("clTitle").value = "";
   $("clModality").value = "";
   $("clSchedule").value = "";
@@ -508,7 +541,7 @@ async function createEnrollment() {
   const studentId = $("eStudent").value;
   const classId = $("eClass").value;
   const status = ($("eStatus").value || "ativa").toLowerCase();
-  const startDate = fmtDateInputToISO($("eStart").value);
+  const startDate = ($("eStart").value || ""); // "YYYY-MM-DD"
 
   if (!studentId) { showBox(out, "❌ Selecione um aluno.", true); return; }
   if (!classId) { showBox(out, "❌ Selecione uma turma.", true); return; }
@@ -523,14 +556,16 @@ async function createEnrollment() {
   const cl = clSnap.data() || {};
   if (cl.active !== true) { showBox(out, "❌ Turma desativada.", true); return; }
 
-  // Evita matrícula duplicada (mesmo aluno na mesma turma)
-  const dupQ = query(
-    collection(db, "enrollments"),
-    where("studentId", "==", studentId),
-    where("classId", "==", classId)
-  );
-  const dupSnap = await getDocs(dupQ);
-  if (!dupSnap.empty) {
+  // ✅ Evita matrícula duplicada SEM precisar de índice composto:
+  // Busca todas matrículas do aluno e filtra por classId no JS.
+  const onlyStudentQ = query(collection(db, "enrollments"), where("studentId", "==", studentId));
+  const onlyStudentSnap = await getDocs(onlyStudentQ);
+  let already = false;
+  onlyStudentSnap.forEach(s => {
+    const d = s.data() || {};
+    if (d.classId === classId) already = true;
+  });
+  if (already) {
     showBox(out, "❌ Este aluno já está matriculado nesta turma.", true);
     return;
   }
@@ -546,7 +581,7 @@ async function createEnrollment() {
     teacherId: cl.teacherId || "",
     teacherName: cl.teacherName || "",
     status,
-    startDate: startDate || "",
+    startDate,
     active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
@@ -555,6 +590,7 @@ async function createEnrollment() {
   const ref = await addDoc(collection(db, "enrollments"), payload);
 
   showBox(out, `✅ Matrícula salva!\nID: ${ref.id}\nAluno: ${payload.studentName}\nTurma: ${payload.classTitle}`);
+
   $("eStudent").value = "";
   $("eClass").value = "";
   $("eStatus").value = "ativa";
@@ -673,14 +709,12 @@ async function loadNotices() {
   snap.forEach(docSnap => {
     const d = docSnap.data() || {};
     const id = docSnap.id;
-    const title = d.title || "(sem título)";
-    const audience = d.audience || "all";
     const active = d.active === true;
 
     rows.push(`
       <tr>
-        <td><b>${escapeHtml(title)}</b><br><span class="muted">${escapeHtml((d.body || "").slice(0, 90))}${(d.body || "").length > 90 ? "…" : ""}</span></td>
-        <td>${escapeHtml(audience)}</td>
+        <td><b>${escapeHtml(d.title || "(sem título)")}</b><br><span class="muted">${escapeHtml((d.body || "").slice(0, 90))}${(d.body || "").length > 90 ? "…" : ""}</span></td>
+        <td>${escapeHtml(d.audience || "all")}</td>
         <td>${active ? "✅" : "⛔"}</td>
         <td>
           <div class="actionsRow">
@@ -717,10 +751,10 @@ async function toggleNoticeActive(noticeId) {
 // ========= Boot =========
 setupTabs();
 
-$("btnLogout").addEventListener("click", logout);
+$("btnLogout")?.addEventListener("click", logout);
 
 // Cadastros
-$("btnCreateStudent").addEventListener("click", async () => {
+$("btnCreateStudent")?.addEventListener("click", async () => {
   const out = $("outStudent");
   hideBox(out);
   try {
@@ -732,11 +766,11 @@ $("btnCreateStudent").addEventListener("click", async () => {
     $("sEmail").value = "";
     await Promise.allSettled([loadUsers(), loadStudentsForSelect()]);
   } catch (e) {
-    showBox(out, "❌ Erro: " + (e?.message || e), true);
+    showBox(out, "❌ Erro ao criar aluno: " + prettyAuthError(e), true);
   }
 });
 
-$("btnCreateTeacher").addEventListener("click", async () => {
+$("btnCreateTeacher")?.addEventListener("click", async () => {
   const out = $("outTeacher");
   hideBox(out);
   try {
@@ -748,29 +782,31 @@ $("btnCreateTeacher").addEventListener("click", async () => {
     $("tEmail").value = "";
     await Promise.allSettled([loadUsers(), loadTeachersForSelect()]);
   } catch (e) {
-    showBox(out, "❌ Erro: " + (e?.message || e), true);
+    showBox(out, "❌ Erro ao criar professor: " + prettyAuthError(e), true);
   }
 });
 
-// Listas
-$("btnReloadUsers").addEventListener("click", async () => {
+// Botões recarregar
+$("btnReloadUsers")?.addEventListener("click", async () => {
   await loadUsers();
   await Promise.allSettled([loadTeachersForSelect(), loadStudentsForSelect()]);
 });
-$("btnReloadCourses").addEventListener("click", async () => {
+$("btnReloadCourses")?.addEventListener("click", async () => {
   await Promise.allSettled([loadCourses(), loadCoursesForSelect(), loadClassesForSelect()]);
 });
-$("btnReloadClasses").addEventListener("click", async () => {
+$("btnReloadClasses")?.addEventListener("click", async () => {
   await Promise.allSettled([loadClasses(), loadClassesForSelect()]);
 });
-$("btnReloadEnroll").addEventListener("click", loadEnrollments);
-$("btnReloadNotices").addEventListener("click", loadNotices);
+$("btnReloadEnroll")?.addEventListener("click", async () => {
+  await Promise.allSettled([loadStudentsForSelect(), loadClassesForSelect(), loadEnrollments()]);
+});
+$("btnReloadNotices")?.addEventListener("click", loadNotices);
 
 // Ações
-$("btnCreateCourse").addEventListener("click", createCourse);
-$("btnCreateClass").addEventListener("click", createClass);
-$("btnCreateEnroll").addEventListener("click", createEnrollment);
-$("btnCreateNotice").addEventListener("click", createNotice);
+$("btnCreateCourse")?.addEventListener("click", createCourse);
+$("btnCreateClass")?.addEventListener("click", createClass);
+$("btnCreateEnroll")?.addEventListener("click", createEnrollment);
+$("btnCreateNotice")?.addEventListener("click", createNotice);
 
 // Guard + Load
 onAuthStateChanged(auth, async (user) => {
