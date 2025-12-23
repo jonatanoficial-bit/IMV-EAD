@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IMV • Admin</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="title">
+          <strong>Painel Admin</strong>
+          <span id="who">carregando…</span>
+        </div>
+      </div>
+      <button id="btnLogout" class="btn danger small">Sair</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="grid">
+      <section class="card">
+        <div class="section">
+          <h2>Cadastrar Aluno (gera senha randômica)</h2>
+          <div class="row">
+            <input id="sName" class="input" placeholder="Nome do aluno" />
+            <input id="sEmail" class="input" placeholder="Email do aluno (obrigatório)" type="email" />
+            <button id="btnCreateStudent" class="btn primary">Criar aluno</button>
+            <div id="outStudent" class="item" style="display:none"></div>
+          </div>
+          <div class="hr"></div>
+          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
+            Observação: este cadastro cria o usuário no <b>Firebase Authentication</b> e cria o perfil em
+            <b>Firestore (users/{uid})</b> com role <b>student</b>.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section">
+          <h2>Cadastrar Professor (prestador)</h2>
+          <div class="row">
+            <input id="tName" class="input" placeholder="Nome do professor" />
+            <input id="tEmail" class="input" placeholder="Email do professor (obrigatório)" type="email" />
+            <button id="btnCreateTeacher" class="btn primary">Criar professor</button>
+            <div id="outTeacher" class="item" style="display:none"></div>
+          </div>
+          <div class="hr"></div>
+          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
+            Depois faremos a tela de turmas, presença, notas e repasse por serviços.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:14px">
+      <div class="section">
+        <h2>Próximos módulos (vamos ativar em sequência)</h2>
+        <ul style="margin:0;padding-left:18px">
+          <li>Matrículas e cursos</li>
+          <li>Financeiro: mensalidades, status, Pix à vista / parcelado</li>
+          <li>Contratos (upload PDF)</li>
+          <li>Wiki/Biblioteca musical</li>
+          <li>Repasse de prestadores (aulas dadas → a pagar/pago)</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="footer">IMV • Admin • Versão inicial</div>
+  </main>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
