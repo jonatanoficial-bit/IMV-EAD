@@ -4,33 +4,170 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IMV • Professor</title>
+
+  <meta name="theme-color" content="#0b1220">
+  <link rel="icon" href="assets/logo-imv.png">
   <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    .grid{
+      display:grid; gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media(min-width: 980px){
+      .grid{ grid-template-columns: 1fr 1fr; align-items:start; }
+    }
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      overflow:hidden;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+    }
+    .table th, .table td{
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .table th{
+      text-align:left;
+      color: rgba(255,255,255,.78);
+      font-weight: 800;
+      background: rgba(255,255,255,.04);
+    }
+    .muted{ color: rgba(255,255,255,.65); font-size: 13px; line-height:1.5; }
+    .pill{
+      display:inline-flex;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color: rgba(255,255,255,.78);
+      gap:8px;
+      align-items:center;
+      white-space:nowrap;
+    }
+    .actionsRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .btn.inline{ width:auto !important; }
+    select.input{ appearance:none; }
+    .miniNote{ font-size:12px; opacity:.78; line-height:1.45; margin-top:8px; }
+  </style>
 </head>
+
 <body>
   <header class="topbar">
     <div class="inner">
       <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
+        <div class="logoWrap" aria-hidden="true">
+          <img src="assets/logo-imv.png" alt="Instituto Musical Vale" onerror="this.style.display='none'">
+        </div>
         <div class="title">
-          <strong>Painel Professor</strong>
+          <strong>Painel Professor • IMV</strong>
           <span id="who">carregando…</span>
         </div>
       </div>
-      <button id="btnLogout" class="btn danger small">Sair</button>
+
+      <div class="topActions">
+        <span class="badge">teacher</span>
+        <button id="btnLogout" class="btn inline">Sair</button>
+      </div>
     </div>
   </header>
 
   <main class="container">
     <section class="card">
       <div class="section">
-        <h2>Em breve</h2>
-        <p style="margin:0">
-          Próxima etapa: turmas, chamada, notas e comentários por aluno.
+        <h2>Minha rotina</h2>
+        <p class="muted">
+          Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.
         </p>
+
+        <div class="actionsRow" style="margin-top:10px;">
+          <span class="pill">Turma</span>
+          <select id="selClass" class="input" style="min-width: 260px;"></select>
+
+          <span class="pill">Data</span>
+          <input id="lessonDate" class="input" type="date" style="min-width: 170px;" />
+
+          <button id="btnLoad" class="btn inline" type="button">Carregar alunos</button>
+        </div>
+
+        <div class="miniNote">
+          Dica: escolha a turma e a data da aula. Depois marque presença e salve.
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="section grid">
+        <div class="card" style="box-shadow:none">
+          <div class="section">
+            <h2>Alunos matriculados</h2>
+            <p class="muted">Lista vem de <code>enrollments</code> filtrando pela turma selecionada.</p>
+
+            <div class="actionsRow" style="margin: 10px 0;">
+              <span class="pill">Total: <b id="studentsCount">0</b></span>
+              <button id="btnSaveAll" class="btn primary inline" type="button">Salvar presença/nota/comentário</button>
+            </div>
+
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Aluno</th>
+                    <th>Presença</th>
+                    <th>Nota</th>
+                    <th>Comentário</th>
+                  </tr>
+                </thead>
+                <tbody id="studentsTbody">
+                  <tr><td colspan="4" class="muted">Selecione uma turma e clique em “Carregar alunos”.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="outSave" class="item" style="display:none; white-space:pre-wrap; margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow:none">
+          <div class="section">
+            <h2>Histórico da turma (últimas aulas)</h2>
+            <p class="muted">Mostra registros salvos em <code>attendance</code>.</p>
+
+            <div class="actionsRow" style="margin: 10px 0;">
+              <button id="btnReloadHistory" class="btn inline" type="button">Recarregar histórico</button>
+              <span class="pill">Registros: <b id="histCount">0</b></span>
+            </div>
+
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Aluno</th>
+                    <th>Presença</th>
+                    <th>Nota</th>
+                  </tr>
+                </thead>
+                <tbody id="histTbody">
+                  <tr><td colspan="4" class="muted">Selecione uma turma para ver o histórico.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="miniNote">
+              Próximo passo: biblioteca/materiais por turma, e avisos.
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <div class="footer">IMV • Professor • Versão inicial</div>
+    <div class="footer">IMV • Professor • Presença + Notas + Comentários</div>
   </main>
 
   <script type="module" src="js/teacher.js"></script>
