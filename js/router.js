@@ -1,30 +1,28 @@
 // js/router.js
-import { watchAuth, getUserRole } from "./auth.js";
+import { watchAuth, getUserRole, logout } from "./auth.js";
 
 /**
- * Base dinâmica:
- * - Em GitHub Pages com repo: /NOME-DO-REPO/
- * - Em domínio raiz: /
- * Assim NÃO quebra se o repo mudar de nome e evita loop/piscar.
+ * Detecta automaticamente o base path do GitHub Pages:
+ * Ex: /IMV-EAD/
  */
 function detectBasePath() {
   const p = window.location.pathname || "/";
-  // Ex.: "/IMV-EAD/index.html" => ["", "IMV-EAD", "index.html"]
   const parts = p.split("/").filter(Boolean);
-
-  // Se estiver em github.io e tiver um primeiro segmento, assume ser o repo
   const isGithubPages = window.location.hostname.endsWith("github.io");
   if (isGithubPages && parts.length >= 1) return `/${parts[0]}/`;
-
-  // Caso contrário (domínio raiz), usa "/"
   return "/";
 }
 
-const BASE = detectBasePath();
+export const BASE = detectBasePath();
 
 export function go(path) {
   const clean = path.replace(/^\//, "");
-  window.location.href = BASE + clean;
+  const target = BASE + clean;
+
+  // Evita recarregar a mesma página (reduz flicker)
+  if (window.location.pathname.endsWith(clean)) return;
+
+  window.location.href = target;
 }
 
 export function requireAuth(allowedRoles = []) {
@@ -34,27 +32,49 @@ export function requireAuth(allowedRoles = []) {
       return;
     }
 
-    const role = await getUserRole(user.uid);
+    let role = null;
+    try {
+      role = await getUserRole(user.uid);
+    } catch (e) {
+      // Se Firestore bloquear, não entra em loop: faz logout e volta
+      console.error("Erro ao ler role:", e);
+      alert("Erro ao validar perfil (Firestore). Vou sair e voltar ao login.");
+      await logout();
+      go("index.html");
+      return;
+    }
 
     if (!role) {
-      alert("Usuário sem perfil no sistema (role). Fale com o administrador.");
+      alert("Seu usuário está logado, mas ainda NÃO tem 'role' no Firestore. Vou sair para evitar loop.");
+      await logout();
       go("index.html");
       return;
     }
 
     if (allowedRoles.length && !allowedRoles.includes(role)) {
-      alert("Acesso não autorizado para este perfil.");
+      alert("Acesso não autorizado para este perfil. Vou sair.");
+      await logout();
       go("index.html");
       return;
     }
   });
 }
 
-export async function redirectByRole(user) {
-  const role = await getUserRole(user.uid);
+export async function redirectByRoleSafe(user) {
+  let role = null;
 
-  if (role === "admin") go("admin.html");
-  else if (role === "teacher") go("teacher.html");
-  else if (role === "student") go("student.html");
-  else go("index.html");
+  try {
+    role = await getUserRole(user.uid);
+  } catch (e) {
+    console.error("Erro ao ler role:", e);
+    return { ok: false, reason: "firestore_error", error: e };
+  }
+
+  if (!role) return { ok: false, reason: "missing_role" };
+
+  if (role === "admin") { go("admin.html"); return { ok: true, role }; }
+  if (role === "teacher") { go("teacher.html"); return { ok: true, role }; }
+  if (role === "student") { go("student.html"); return { ok: true, role }; }
+
+  return { ok: false, reason: "unknown_role", role };
 }
