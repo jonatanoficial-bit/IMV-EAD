@@ -116,7 +116,7 @@
       <div class="section tabPanel active" id="tab-users">
         <h2>Cadastros</h2>
         <p class="muted">
-          Crie contas (Auth) e perfis (Firestore) de <b>Alunos</b> e <b>Professores</b>, e veja a lista geral.
+          Crie contas (Auth) e perfis (Firestore) de <b>Alunos</b> e <b>Professores</b>.
         </p>
 
         <div class="hr"></div>
@@ -163,9 +163,6 @@
                 <button id="btnCreateTeacher" class="btn primary" type="button">Criar professor</button>
 
                 <div id="outTeacher" class="item" style="display:none; white-space:pre-wrap"></div>
-                <div class="miniWarn">
-                  Professores terão turmas, presença, notas e materiais na próxima etapa.
-                </div>
               </div>
             </div>
           </div>
@@ -174,7 +171,7 @@
         <div class="hr"></div>
 
         <h2>Lista de usuários</h2>
-        <p class="muted">Carrega do Firestore (<code>users</code>) e permite ativar/desativar (sem apagar).</p>
+        <p class="muted">Ativar/Desativar (sem apagar).</p>
 
         <div class="actionsRow" style="margin: 10px 0;">
           <button id="btnReloadUsers" class="btn inline" type="button">Recarregar</button>
@@ -202,8 +199,6 @@
       <!-- CURSOS -->
       <div class="section tabPanel" id="tab-courses">
         <h2>Cursos</h2>
-        <p class="muted">Cadastre os cursos oferecidos (ex.: Canto, Teclado, Violão, Guitarra, Baixo, Piano).</p>
-
         <div class="hr"></div>
 
         <div class="split">
@@ -211,28 +206,12 @@
             <div class="section">
               <h2>Novo curso</h2>
               <div class="row">
-                <label>
-                  <span class="badge">Nome</span>
-                  <input id="cName" class="input" placeholder="Ex: Canto Popular" />
-                </label>
-
-                <label>
-                  <span class="badge">Categoria / Instrumento</span>
-                  <input id="cCategory" class="input" placeholder="Ex: Voz / Teclado / Violão" />
-                </label>
-
-                <label>
-                  <span class="badge">Modalidade</span>
-                  <input id="cModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" />
-                </label>
-
-                <label>
-                  <span class="badge">Preço base (R$)</span>
-                  <input id="cPrice" class="input" placeholder="Ex: 180" inputmode="decimal" />
-                </label>
+                <label><span class="badge">Nome</span><input id="cName" class="input" placeholder="Ex: Canto Popular" /></label>
+                <label><span class="badge">Categoria</span><input id="cCategory" class="input" placeholder="Ex: Voz / Teclado / Violão" /></label>
+                <label><span class="badge">Modalidade</span><input id="cModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" /></label>
+                <label><span class="badge">Preço base (R$)</span><input id="cPrice" class="input" placeholder="Ex: 180" inputmode="decimal" /></label>
 
                 <button id="btnCreateCourse" class="btn primary" type="button">Salvar curso</button>
-
                 <div id="outCourse" class="item" style="display:none; white-space:pre-wrap"></div>
               </div>
             </div>
@@ -262,22 +241,14 @@
                   </tbody>
                 </table>
               </div>
-
-              <div class="miniWarn">
-                Próximo passo: criar turmas por curso e vincular professor + alunos.
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- TURMAS (AGORA FUNCIONA) -->
+      <!-- TURMAS -->
       <div class="section tabPanel" id="tab-classes">
         <h2>Turmas</h2>
-        <p class="muted">
-          Crie turmas vinculando <b>Curso + Professor</b>, definindo modalidade e horário.
-        </p>
-
         <div class="hr"></div>
 
         <div class="split">
@@ -285,37 +256,14 @@
             <div class="section">
               <h2>Nova turma</h2>
               <div class="row">
-                <label>
-                  <span class="badge">Nome da turma</span>
-                  <input id="clTitle" class="input" placeholder="Ex: Canto Coletivo • Sábados" />
-                </label>
-
-                <label>
-                  <span class="badge">Curso</span>
-                  <select id="clCourse" class="input"></select>
-                </label>
-
-                <label>
-                  <span class="badge">Professor</span>
-                  <select id="clTeacher" class="input"></select>
-                </label>
-
-                <label>
-                  <span class="badge">Modalidade</span>
-                  <input id="clModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" />
-                </label>
-
-                <label>
-                  <span class="badge">Horário (texto livre)</span>
-                  <input id="clSchedule" class="input" placeholder="Ex: 2 sábados/mês • 09:00–10:30" />
-                </label>
+                <label><span class="badge">Nome da turma</span><input id="clTitle" class="input" placeholder="Ex: Canto Coletivo • Sábados" /></label>
+                <label><span class="badge">Curso</span><select id="clCourse" class="input"></select></label>
+                <label><span class="badge">Professor</span><select id="clTeacher" class="input"></select></label>
+                <label><span class="badge">Modalidade</span><input id="clModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" /></label>
+                <label><span class="badge">Horário</span><input id="clSchedule" class="input" placeholder="Ex: 2 sábados/mês • 09:00–10:30" /></label>
 
                 <button id="btnCreateClass" class="btn primary" type="button">Salvar turma</button>
                 <div id="outClass" class="item" style="display:none; white-space:pre-wrap"></div>
-
-                <div class="miniWarn">
-                  Dica: primeiro cadastre cursos e professores. Depois crie as turmas aqui.
-                </div>
               </div>
             </div>
           </div>
@@ -345,24 +293,89 @@
                   </tbody>
                 </table>
               </div>
-
-              <div class="miniWarn">
-                Próximo passo: matrícula de alunos na turma e chamada do professor.
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- MATRÍCULAS -->
+      <!-- MATRÍCULAS (AGORA FUNCIONA) -->
       <div class="section tabPanel" id="tab-enroll">
         <h2>Matrículas</h2>
-        <p class="muted">
-          Próxima etapa: matricular aluno em curso/turma com status e data de início.
-        </p>
-        <div class="item" style="white-space:pre-wrap">
-✅ Estrutura (Firestore):
-- enrollments/{enrollmentId}: studentId, courseId, classId(opcional), status, startDate, createdAt
+        <p class="muted">Matricule um aluno em uma turma (isso habilita presença, notas e financeiro na sequência).</p>
+
+        <div class="hr"></div>
+
+        <div class="split">
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Nova matrícula</h2>
+
+              <div class="row">
+                <label>
+                  <span class="badge">Aluno</span>
+                  <select id="eStudent" class="input"></select>
+                </label>
+
+                <label>
+                  <span class="badge">Turma</span>
+                  <select id="eClass" class="input"></select>
+                </label>
+
+                <label>
+                  <span class="badge">Status</span>
+                  <select id="eStatus" class="input">
+                    <option value="ativa">ativa</option>
+                    <option value="pausada">pausada</option>
+                    <option value="cancelada">cancelada</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span class="badge">Data de início</span>
+                  <input id="eStart" class="input" type="date" />
+                </label>
+
+                <button id="btnCreateEnroll" class="btn primary" type="button">Salvar matrícula</button>
+                <div id="outEnroll" class="item" style="display:none; white-space:pre-wrap"></div>
+
+                <div class="miniWarn">
+                  Dica: crie cursos → turmas → depois matrículas.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Lista de matrículas</h2>
+              <div class="actionsRow" style="margin: 0 0 10px;">
+                <button id="btnReloadEnroll" class="btn inline" type="button">Recarregar</button>
+                <span class="pill">Total: <b id="enrollCount">0</b></span>
+              </div>
+
+              <div style="overflow:auto;">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Aluno</th>
+                      <th>Turma</th>
+                      <th>Status</th>
+                      <th>Início</th>
+                      <th>Ativo</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="enrollTbody">
+                    <tr><td colspan="6" class="muted">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="miniWarn">
+                Próximo passo: presença e notas no painel do professor.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -370,7 +383,7 @@
       <div class="section tabPanel" id="tab-pay">
         <h2>Financeiro</h2>
         <p class="muted">
-          Próxima etapa: mensalidades, histórico e forma de pagamento (Pix à vista / Pix parcelado).
+          Próxima etapa: mensalidades por matrícula (Pix à vista / Pix parcelado) e histórico por aluno.
         </p>
         <div class="item" style="white-space:pre-wrap">
 ✅ Estrutura (Firestore):
@@ -381,8 +394,6 @@
       <!-- AVISOS -->
       <div class="section tabPanel" id="tab-notices">
         <h2>Avisos</h2>
-        <p class="muted">Avisos aparecem para alunos e/ou professores (vamos exibir nos painéis deles na próxima etapa).</p>
-
         <div class="hr"></div>
 
         <div class="split">
@@ -390,23 +401,11 @@
             <div class="section">
               <h2>Novo aviso</h2>
               <div class="row">
-                <label>
-                  <span class="badge">Título</span>
-                  <input id="nTitle" class="input" placeholder="Ex: Recesso / Evento / Mudança de horário" />
-                </label>
-
-                <label>
-                  <span class="badge">Para quem?</span>
-                  <input id="nAudience" class="input" placeholder="all / students / teachers" />
-                </label>
-
-                <label>
-                  <span class="badge">Mensagem</span>
-                  <textarea id="nBody" class="input" rows="5" placeholder="Digite o aviso..."></textarea>
-                </label>
+                <label><span class="badge">Título</span><input id="nTitle" class="input" placeholder="Ex: Recesso / Evento" /></label>
+                <label><span class="badge">Para quem?</span><input id="nAudience" class="input" placeholder="all / students / teachers" /></label>
+                <label><span class="badge">Mensagem</span><textarea id="nBody" class="input" rows="5" placeholder="Digite o aviso..."></textarea></label>
 
                 <button id="btnCreateNotice" class="btn primary" type="button">Publicar aviso</button>
-
                 <div id="outNotice" class="item" style="display:none; white-space:pre-wrap"></div>
               </div>
             </div>
@@ -435,10 +434,6 @@
                   </tbody>
                 </table>
               </div>
-
-              <div class="miniWarn">
-                Próximo: mostrar avisos no painel do aluno e do professor.
-              </div>
             </div>
           </div>
         </div>
@@ -446,7 +441,7 @@
 
     </section>
 
-    <div class="footer">IMV • Admin • Turmas (Etapa A)</div>
+    <div class="footer">IMV • Admin • Matrículas (Etapa B)</div>
   </main>
 
   <script type="module" src="js/admin.js"></script>
