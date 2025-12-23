@@ -4,72 +4,381 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IMV • Admin</title>
+
+  <meta name="theme-color" content="#0b1220">
+  <link rel="icon" href="assets/logo-imv.png">
   <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    /* Complementos leves para abas (sem depender de mudar seu CSS) */
+    .tabsBar{
+      display:flex; gap:10px; flex-wrap:wrap;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.03);
+    }
+    .tabBtn{
+      width:auto !important;
+      padding:10px 12px !important;
+      border-radius: 999px !important;
+      cursor:pointer;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      font-weight: 800;
+    }
+    .tabBtn.active{
+      background: linear-gradient(90deg, rgba(103,166,255,.95), rgba(51,224,180,.92));
+      color: rgba(0,0,0,.88);
+      border-color: rgba(255,255,255,.10);
+    }
+    .tabPanel{ display:none; }
+    .tabPanel.active{ display:block; }
+
+    .split{
+      display:grid; gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media(min-width: 920px){
+      .split{ grid-template-columns: 1fr 1fr; align-items:start; }
+    }
+
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      overflow:hidden;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+    }
+    .table th, .table td{
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .table th{
+      text-align:left;
+      color: rgba(255,255,255,.78);
+      font-weight: 800;
+      background: rgba(255,255,255,.04);
+    }
+    .pill{
+      display:inline-flex;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color: rgba(255,255,255,.78);
+      gap:8px;
+      align-items:center;
+      white-space:nowrap;
+    }
+    .actionsRow{ display:flex; gap:10px; flex-wrap:wrap; }
+    .btn.inline{ width:auto !important; }
+    .muted{ color: rgba(255,255,255,.65); font-size: 13px; line-height:1.5; }
+    .miniWarn{ font-size:12px; opacity:.78; line-height:1.45; margin-top:8px; }
+  </style>
 </head>
+
 <body>
   <header class="topbar">
     <div class="inner">
       <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
+        <div class="logoWrap" aria-hidden="true">
+          <img src="assets/logo-imv.png" alt="Instituto Musical Vale" onerror="this.style.display='none'">
+        </div>
         <div class="title">
-          <strong>Painel Admin</strong>
+          <strong>Painel Admin • IMV</strong>
           <span id="who">carregando…</span>
         </div>
       </div>
-      <button id="btnLogout" class="btn danger small">Sair</button>
+
+      <div class="topActions">
+        <span class="badge" id="badgeRole">admin</span>
+        <button id="btnLogout" class="btn inline">Sair</button>
+      </div>
     </div>
   </header>
 
   <main class="container">
-    <div class="grid">
-      <section class="card">
-        <div class="section">
-          <h2>Cadastrar Aluno (gera senha randômica)</h2>
-          <div class="row">
-            <input id="sName" class="input" placeholder="Nome do aluno" />
-            <input id="sEmail" class="input" placeholder="Email do aluno (obrigatório)" type="email" />
-            <button id="btnCreateStudent" class="btn primary">Criar aluno</button>
-            <div id="outStudent" class="item" style="display:none"></div>
-          </div>
-          <div class="hr"></div>
-          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
-            Observação: este cadastro cria o usuário no <b>Firebase Authentication</b> e cria o perfil em
-            <b>Firestore (users/{uid})</b> com role <b>student</b>.
-          </p>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="section">
-          <h2>Cadastrar Professor (prestador)</h2>
-          <div class="row">
-            <input id="tName" class="input" placeholder="Nome do professor" />
-            <input id="tEmail" class="input" placeholder="Email do professor (obrigatório)" type="email" />
-            <button id="btnCreateTeacher" class="btn primary">Criar professor</button>
-            <div id="outTeacher" class="item" style="display:none"></div>
-          </div>
-          <div class="hr"></div>
-          <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.45">
-            Depois faremos a tela de turmas, presença, notas e repasse por serviços.
-          </p>
-        </div>
-      </section>
-    </div>
-
-    <section class="card" style="margin-top:14px">
-      <div class="section">
-        <h2>Próximos módulos (vamos ativar em sequência)</h2>
-        <ul style="margin:0;padding-left:18px">
-          <li>Matrículas e cursos</li>
-          <li>Financeiro: mensalidades, status, Pix à vista / parcelado</li>
-          <li>Contratos (upload PDF)</li>
-          <li>Wiki/Biblioteca musical</li>
-          <li>Repasse de prestadores (aulas dadas → a pagar/pago)</li>
-        </ul>
+    <section class="card">
+      <div class="tabsBar">
+        <button class="tabBtn active" data-tab="tab-users">Cadastros</button>
+        <button class="tabBtn" data-tab="tab-courses">Cursos</button>
+        <button class="tabBtn" data-tab="tab-classes">Turmas</button>
+        <button class="tabBtn" data-tab="tab-enroll">Matrículas</button>
+        <button class="tabBtn" data-tab="tab-pay">Financeiro</button>
+        <button class="tabBtn" data-tab="tab-notices">Avisos</button>
       </div>
+
+      <!-- CADASTROS (mantém aluno/professor + lista de usuários) -->
+      <div class="section tabPanel active" id="tab-users">
+        <h2>Cadastros</h2>
+        <p class="muted">
+          Aqui você cria contas (Auth) e perfis (Firestore) de <b>Alunos</b> e <b>Professores</b>, e vê a lista geral.
+        </p>
+
+        <div class="hr"></div>
+
+        <div class="split">
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Cadastrar Aluno (senha randômica)</h2>
+              <div class="row">
+                <label>
+                  <span class="badge">Nome do aluno</span>
+                  <input id="sName" class="input" placeholder="Ex: Maria Silva" />
+                </label>
+
+                <label>
+                  <span class="badge">Email do aluno</span>
+                  <input id="sEmail" class="input" placeholder="email@exemplo.com" type="email" />
+                </label>
+
+                <button id="btnCreateStudent" class="btn primary" type="button">Criar aluno</button>
+
+                <div id="outStudent" class="item" style="display:none; white-space:pre-wrap"></div>
+                <div class="miniWarn">
+                  Dica: para testar Gmail, você pode usar <b>seuemail+aluno@gmail.com</b>.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Cadastrar Professor (prestador)</h2>
+              <div class="row">
+                <label>
+                  <span class="badge">Nome do professor</span>
+                  <input id="tName" class="input" placeholder="Ex: João Pereira" />
+                </label>
+
+                <label>
+                  <span class="badge">Email do professor</span>
+                  <input id="tEmail" class="input" placeholder="email@exemplo.com" type="email" />
+                </label>
+
+                <button id="btnCreateTeacher" class="btn primary" type="button">Criar professor</button>
+
+                <div id="outTeacher" class="item" style="display:none; white-space:pre-wrap"></div>
+                <div class="miniWarn">
+                  Professores terão turmas, presença, notas e materiais na próxima etapa.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>Lista de usuários</h2>
+        <p class="muted">Carrega do Firestore (<code>users</code>) e permite ativar/desativar (sem apagar).</p>
+
+        <div class="actionsRow" style="margin: 10px 0;">
+          <button id="btnReloadUsers" class="btn inline" type="button">Recarregar</button>
+          <span class="pill">Total: <b id="usersCount">0</b></span>
+        </div>
+
+        <div style="overflow:auto;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Ativo</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="usersTbody">
+              <tr><td colspan="5" class="muted">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CURSOS -->
+      <div class="section tabPanel" id="tab-courses">
+        <h2>Cursos</h2>
+        <p class="muted">Cadastre os cursos oferecidos (ex.: Canto, Teclado, Violão, Guitarra, Baixo, Piano).</p>
+
+        <div class="hr"></div>
+
+        <div class="split">
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Novo curso</h2>
+              <div class="row">
+                <label>
+                  <span class="badge">Nome</span>
+                  <input id="cName" class="input" placeholder="Ex: Canto Popular" />
+                </label>
+
+                <label>
+                  <span class="badge">Categoria / Instrumento</span>
+                  <input id="cCategory" class="input" placeholder="Ex: Voz / Teclado / Violão" />
+                </label>
+
+                <label>
+                  <span class="badge">Modalidade</span>
+                  <input id="cModality" class="input" placeholder="Ex: Presencial / EAD / Híbrido" />
+                </label>
+
+                <label>
+                  <span class="badge">Preço base (R$)</span>
+                  <input id="cPrice" class="input" placeholder="Ex: 180" inputmode="decimal" />
+                </label>
+
+                <button id="btnCreateCourse" class="btn primary" type="button">Salvar curso</button>
+
+                <div id="outCourse" class="item" style="display:none; white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Lista de cursos</h2>
+              <div class="actionsRow" style="margin: 0 0 10px;">
+                <button id="btnReloadCourses" class="btn inline" type="button">Recarregar</button>
+                <span class="pill">Total: <b id="coursesCount">0</b></span>
+              </div>
+
+              <div style="overflow:auto;">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Curso</th>
+                      <th>Modalidade</th>
+                      <th>Preço</th>
+                      <th>Ativo</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="coursesTbody">
+                    <tr><td colspan="5" class="muted">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="miniWarn">
+                Próximo passo: criar turmas por curso e vincular professor + alunos.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TURMAS -->
+      <div class="section tabPanel" id="tab-classes">
+        <h2>Turmas</h2>
+        <p class="muted">
+          Esta aba prepara o módulo de turmas. Na próxima etapa vamos habilitar criação completa: curso + professor + dias/horário + alunos.
+        </p>
+        <div class="item" style="white-space:pre-wrap">
+✅ Estrutura definida (Firestore):
+- classes/{classId}: courseId, teacherId, title, modality, schedule, active
+- class_students (via enrollments)
+        </div>
+      </div>
+
+      <!-- MATRÍCULAS -->
+      <div class="section tabPanel" id="tab-enroll">
+        <h2>Matrículas</h2>
+        <p class="muted">
+          Aqui vamos matricular aluno em curso/turma, com status e data de início.
+        </p>
+        <div class="item" style="white-space:pre-wrap">
+✅ Estrutura definida (Firestore):
+- enrollments/{enrollmentId}: studentId, courseId, classId (opcional), status, startDate, createdAt
+Próximo: tela para criar e listar por aluno/curso.
+        </div>
+      </div>
+
+      <!-- FINANCEIRO -->
+      <div class="section tabPanel" id="tab-pay">
+        <h2>Financeiro</h2>
+        <p class="muted">
+          Mensalidades, histórico e forma de pagamento (Pix à vista / Pix parcelado). Nesta etapa deixamos a base pronta.
+        </p>
+        <div class="item" style="white-space:pre-wrap">
+✅ Estrutura definida (Firestore):
+- payments/{paymentId}: studentId, enrollmentId, dueDate, amount, status(pendente/pago), method(pix_avista/pix_parcelado), paidAt
+Próximo: registrar pagamentos e gerar histórico por aluno.
+        </div>
+      </div>
+
+      <!-- AVISOS -->
+      <div class="section tabPanel" id="tab-notices">
+        <h2>Avisos</h2>
+        <p class="muted">Avisos aparecem para alunos e/ou professores (vamos exibir nos painéis deles na próxima etapa).</p>
+
+        <div class="hr"></div>
+
+        <div class="split">
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Novo aviso</h2>
+              <div class="row">
+                <label>
+                  <span class="badge">Título</span>
+                  <input id="nTitle" class="input" placeholder="Ex: Recesso / Evento / Mudança de horário" />
+                </label>
+
+                <label>
+                  <span class="badge">Para quem?</span>
+                  <input id="nAudience" class="input" placeholder="all / students / teachers" />
+                </label>
+
+                <label>
+                  <span class="badge">Mensagem</span>
+                  <textarea id="nBody" class="input" rows="5" placeholder="Digite o aviso..."></textarea>
+                </label>
+
+                <button id="btnCreateNotice" class="btn primary" type="button">Publicar aviso</button>
+
+                <div id="outNotice" class="item" style="display:none; white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none">
+            <div class="section">
+              <h2>Lista de avisos</h2>
+              <div class="actionsRow" style="margin: 0 0 10px;">
+                <button id="btnReloadNotices" class="btn inline" type="button">Recarregar</button>
+                <span class="pill">Total: <b id="noticesCount">0</b></span>
+              </div>
+
+              <div style="overflow:auto;">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Título</th>
+                      <th>Audiência</th>
+                      <th>Ativo</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="noticesTbody">
+                    <tr><td colspan="4" class="muted">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="miniWarn">
+                Próximo: mostrar avisos no painel do aluno e do professor.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
-    <div class="footer">IMV • Admin • Versão inicial</div>
+    <div class="footer">IMV • Admin • Etapa 2 (Cadastros + Cursos + Avisos)</div>
   </main>
 
   <script type="module" src="js/admin.js"></script>
