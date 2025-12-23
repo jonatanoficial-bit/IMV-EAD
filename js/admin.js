@@ -1,8 +1,7 @@
 // js/admin.js
-// Painel Admin: mantém cadastro de aluno/professor + adiciona cursos, avisos e listas.
-// Este arquivo é AUTÔNOMO: usa js/firebase.js (auth + db) e valida role=admin no Firestore.
+// Admin: cadastros + cursos + turmas + avisos (com listas e ativar/desativar)
 
-import { app, auth, db } from "./firebase.js";
+import { auth, db } from "./firebase.js";
 
 import {
   onAuthStateChanged,
@@ -11,9 +10,7 @@ import {
   getAuth
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
-import {
-  initializeApp
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 
 import {
   doc,
@@ -25,13 +22,13 @@ import {
   orderBy,
   getDocs,
   serverTimestamp,
-  addDoc
+  addDoc,
+  where
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
 
-// ========= Firebase Config duplicada aqui (para criar Secondary Auth sem deslogar o Admin) =========
-// IMPORTANTE: isso precisa bater com seu js/firebase.js
+// ========= Secondary Auth (para criar usuários sem deslogar o admin) =========
 const firebaseConfig = {
   apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
   authDomain: "imvapp-aef54.firebaseapp.com",
@@ -75,8 +72,23 @@ function generateRandomPassword(length = 10) {
 
 async function logout() {
   await signOut(auth);
-  // Volta para login
   window.location.href = "./index.html";
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+function escapeAttr(str) {
+  return escapeHtml(str).replaceAll("`", "&#096;");
+}
+function formatMoney(n) {
+  try { return Number(n || 0).toFixed(2).replace(".", ","); }
+  catch { return "0,00"; }
 }
 
 // ========= Tabs =========
@@ -92,7 +104,7 @@ function setupTabs() {
   btns.forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
 }
 
-// ========= Auth + Role Check =========
+// ========= Auth + Role =========
 async function getUserProfile(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -110,7 +122,7 @@ async function requireAdmin(user) {
   return profile;
 }
 
-// ========= Users List =========
+// ========= USERS LIST =========
 async function loadUsers() {
   const tbody = $("usersTbody");
   tbody.innerHTML = `<tr><td colspan="5" class="muted">Carregando…</td></tr>`;
@@ -153,12 +165,12 @@ async function loadUsers() {
 
   tbody.innerHTML = rows.join("");
 
-  // Bind actions
   tbody.querySelectorAll("[data-action='toggleActive']").forEach(btn => {
     btn.addEventListener("click", async () => {
       const uid = btn.getAttribute("data-uid");
       await toggleUserActive(uid);
       await loadUsers();
+      await loadTeachersForSelect(); // mantém selects atualizados
     });
   });
 }
@@ -227,6 +239,7 @@ async function createCourse() {
   $("cPrice").value = "";
 
   await loadCourses();
+  await loadCoursesForSelect();
 }
 
 async function loadCourses() {
@@ -276,6 +289,7 @@ async function loadCourses() {
       const id = btn.getAttribute("data-id");
       await toggleCourseActive(id);
       await loadCourses();
+      await loadCoursesForSelect();
     });
   });
 }
@@ -304,7 +318,7 @@ async function createNotice() {
 
   const payload = {
     title,
-    audience, // all / students / teachers
+    audience,
     body,
     active: true,
     createdAt: serverTimestamp(),
@@ -380,24 +394,159 @@ async function toggleNoticeActive(noticeId) {
   await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
 }
 
-// ========= Escape helpers =========
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+// ========= TURMAS (NEW) =========
+async function loadCoursesForSelect() {
+  const sel = $("clCourse");
+  if (!sel) return;
+
+  sel.innerHTML = `<option value="">Carregando cursos…</option>`;
+
+  const qy = query(collection(db, "courses"), orderBy("name", "asc"));
+  const snap = await getDocs(qy);
+
+  const options = [];
+  snap.forEach(docSnap => {
+    const d = docSnap.data() || {};
+    if (d.active !== true) return;
+    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(d.name || docSnap.id)}</option>`);
+  });
+
+  sel.innerHTML = options.length
+    ? `<option value="">Selecione um curso</option>${options.join("")}`
+    : `<option value="">Nenhum curso ativo</option>`;
 }
-function escapeAttr(str) {
-  return escapeHtml(str).replaceAll("`", "&#096;");
+
+async function loadTeachersForSelect() {
+  const sel = $("clTeacher");
+  if (!sel) return;
+
+  sel.innerHTML = `<option value="">Carregando professores…</option>`;
+
+  const qy = query(collection(db, "users"), where("role", "==", "teacher"), orderBy("name", "asc"));
+  const snap = await getDocs(qy);
+
+  const options = [];
+  snap.forEach(docSnap => {
+    const d = docSnap.data() || {};
+    if (d.active !== true) return;
+    options.push(`<option value="${escapeAttr(docSnap.id)}">${escapeHtml(d.name || d.email || docSnap.id)}</option>`);
+  });
+
+  sel.innerHTML = options.length
+    ? `<option value="">Selecione um professor</option>${options.join("")}`
+    : `<option value="">Nenhum professor ativo</option>`;
 }
-function formatMoney(n) {
-  try {
-    return Number(n || 0).toFixed(2).replace(".", ",");
-  } catch {
-    return "0,00";
+
+async function createClass() {
+  const out = $("outClass");
+  hideBox(out);
+
+  const title = $("clTitle").value.trim();
+  const courseId = $("clCourse").value;
+  const teacherId = $("clTeacher").value;
+  const modality = $("clModality").value.trim();
+  const schedule = $("clSchedule").value.trim();
+
+  if (!title) { showBox(out, "❌ Informe o nome da turma.", true); return; }
+  if (!courseId) { showBox(out, "❌ Selecione um curso.", true); return; }
+  if (!teacherId) { showBox(out, "❌ Selecione um professor.", true); return; }
+
+  // Buscar nomes (para facilitar leitura e manter histórico)
+  const courseSnap = await getDoc(doc(db, "courses", courseId));
+  if (!courseSnap.exists()) { showBox(out, "❌ Curso não encontrado.", true); return; }
+  const course = courseSnap.data() || {};
+  if (course.active !== true) { showBox(out, "❌ Curso está desativado.", true); return; }
+
+  const teacherSnap = await getDoc(doc(db, "users", teacherId));
+  if (!teacherSnap.exists()) { showBox(out, "❌ Professor não encontrado.", true); return; }
+  const teacher = teacherSnap.data() || {};
+  if (teacher.active !== true) { showBox(out, "❌ Professor está desativado.", true); return; }
+
+  const payload = {
+    title,
+    courseId,
+    courseName: course.name || "",
+    teacherId,
+    teacherName: teacher.name || teacher.email || "",
+    modality: modality || (course.modality || ""),
+    schedule: schedule || "",
+    active: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  const ref = await addDoc(collection(db, "classes"), payload);
+
+  showBox(out, `✅ Turma salva!\nID: ${ref.id}\nTurma: ${title}\nCurso: ${payload.courseName}\nProfessor: ${payload.teacherName}`);
+
+  $("clTitle").value = "";
+  $("clModality").value = "";
+  $("clSchedule").value = "";
+  $("clCourse").value = "";
+  $("clTeacher").value = "";
+
+  await loadClasses();
+}
+
+async function loadClasses() {
+  const tbody = $("classesTbody");
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="6" class="muted">Carregando…</td></tr>`;
+
+  const qy = query(collection(db, "classes"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(qy);
+
+  $("classesCount").textContent = String(snap.size);
+
+  if (snap.empty) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted">Nenhuma turma cadastrada.</td></tr>`;
+    return;
   }
+
+  const rows = [];
+  snap.forEach(docSnap => {
+    const d = docSnap.data() || {};
+    const id = docSnap.id;
+    const active = d.active === true;
+
+    rows.push(`
+      <tr>
+        <td><b>${escapeHtml(d.title || "(sem título)")}</b><br><span class="muted">${escapeHtml(id)}</span></td>
+        <td>${escapeHtml(d.courseName || d.courseId || "")}</td>
+        <td>${escapeHtml(d.teacherName || d.teacherId || "")}</td>
+        <td>${escapeHtml(d.schedule || "")}<br><span class="muted">${escapeHtml(d.modality || "")}</span></td>
+        <td>${active ? "✅" : "⛔"}</td>
+        <td>
+          <div class="actionsRow">
+            <button class="btn inline" data-action="toggleClass" data-id="${escapeAttr(id)}">
+              ${active ? "Desativar" : "Ativar"}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `);
+  });
+
+  tbody.innerHTML = rows.join("");
+
+  tbody.querySelectorAll("[data-action='toggleClass']").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-id");
+      await toggleClassActive(id);
+      await loadClasses();
+    });
+  });
+}
+
+async function toggleClassActive(classId) {
+  const ref = doc(db, "classes", classId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const cur = snap.data();
+  const next = !(cur.active === true);
+  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
 }
 
 // ========= Boot =========
@@ -405,6 +554,7 @@ setupTabs();
 
 $("btnLogout").addEventListener("click", logout);
 
+// Cadastros
 $("btnCreateStudent").addEventListener("click", async () => {
   const out = $("outStudent");
   hideBox(out);
@@ -435,21 +585,35 @@ $("btnCreateTeacher").addEventListener("click", async () => {
     $("tName").value = "";
     $("tEmail").value = "";
     await loadUsers();
+    await loadTeachersForSelect();
   } catch (e) {
     console.error(e);
     showBox(out, "❌ Erro: " + (e?.message || e), true);
   }
 });
 
+// Cursos
 $("btnCreateCourse").addEventListener("click", createCourse);
-$("btnReloadCourses").addEventListener("click", loadCourses);
+$("btnReloadCourses").addEventListener("click", async () => {
+  await loadCourses();
+  await loadCoursesForSelect();
+});
 
+// Avisos
 $("btnCreateNotice").addEventListener("click", createNotice);
 $("btnReloadNotices").addEventListener("click", loadNotices);
 
-$("btnReloadUsers").addEventListener("click", loadUsers);
+// Users list
+$("btnReloadUsers").addEventListener("click", async () => {
+  await loadUsers();
+  await loadTeachersForSelect();
+});
 
-// Login guard
+// Turmas
+$("btnCreateClass").addEventListener("click", createClass);
+$("btnReloadClasses").addEventListener("click", loadClasses);
+
+// Guard + Initial load
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "./index.html";
@@ -461,6 +625,13 @@ onAuthStateChanged(auth, async (user) => {
 
   $("who").textContent = `${profile.name || user.email} • (${profile.role || "admin"})`;
 
-  // Carregamento inicial
-  await Promise.allSettled([loadUsers(), loadCourses(), loadNotices()]);
+  // Load everything needed for admin
+  await Promise.allSettled([
+    loadUsers(),
+    loadCourses(),
+    loadNotices(),
+    loadCoursesForSelect(),
+    loadTeachersForSelect(),
+    loadClasses()
+  ]);
 });
