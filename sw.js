@@ -1,5 +1,5 @@
-// sw.js — cache simples para PWA (leve e estável)
-const CACHE_NAME = "imv-ea-v3"; // ✅ troquei v1 -> v3 para forçar limpar cache
+// sw.js — cache simples para PWA (leve e estável) + correção forte de atualização
+const CACHE_NAME = "imv-ea-v6"; // ✅ aumente sempre que mexer no app para quebrar cache
 
 const ASSETS = [
   "./",
@@ -8,19 +8,13 @@ const ASSETS = [
   "./teacher.html",
   "./student.html",
   "./css/styles.css",
-
-  // JS
   "./js/firebase.js",
   "./js/auth.js",
   "./js/router.js",
   "./js/admin.js",
   "./js/teacher.js",
   "./js/student.js",
-
-  // PWA
   "./manifest.webmanifest",
-
-  // Assets
   "./assets/logo-imv.png",
   "./assets/icon-192.png",
   "./assets/icon-512.png"
@@ -40,18 +34,27 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// ✅ Estratégia: network-first para arquivos críticos (evita ficar preso no cache)
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // só trata arquivos do próprio site
+  // Só tratar requisições do próprio site
   if (url.origin !== self.location.origin) return;
 
-  const isCritical =
-    url.pathname.endsWith("/js/firebase.js") ||
-    url.pathname.endsWith("/js/auth.js") ||
-    url.pathname.endsWith("/js/router.js") ||
-    url.pathname.endsWith("/index.html");
+  // ✅ Arquivos críticos sempre "network-first" para nunca ficar preso em versão antiga
+  const criticalPaths = [
+    "/IMV-EAD/index.html",
+    "/IMV-EAD/admin.html",
+    "/IMV-EAD/teacher.html",
+    "/IMV-EAD/student.html",
+    "/IMV-EAD/js/admin.js",
+    "/IMV-EAD/js/firebase.js",
+    "/IMV-EAD/js/auth.js",
+    "/IMV-EAD/js/router.js",
+    "/IMV-EAD/js/teacher.js",
+    "/IMV-EAD/js/student.js"
+  ];
+
+  const isCritical = criticalPaths.some((p) => url.pathname.endsWith(p.replace("/IMV-EAD", "")) || url.pathname === p);
 
   if (isCritical) {
     event.respondWith(
@@ -66,6 +69,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // resto: cache-first
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+  // Resto: cache-first
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
+  );
 });
