@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IMV • Portal</title>
 
-  <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0b1220">
-  <link rel="icon" href="assets/icon-192.png">
-
+  <link rel="icon" href="assets/logo-imv.png">
   <link rel="stylesheet" href="css/styles.css" />
+
   <style>
     .hidden{display:none!important}
     .mini{font-size:12px;opacity:.78;margin-top:8px;line-height:1.45}
@@ -59,7 +58,7 @@
           </div>
 
           <div class="mini">
-            Dica: se não atualizar, abra em <b>aba anônima</b> ou use <b>?v=2</b> no final do link.
+            Se algo “não atualizar”, abra em <b>aba anônima</b> e use <b>?v=99</b> no final do link.
           </div>
         </div>
       </section>
@@ -68,7 +67,6 @@
         <div class="section">
           <h2>Entrar</h2>
 
-          <!-- IMPORTANTE: onsubmit="return false" impede recarregar mesmo se JS falhar -->
           <form id="loginForm" class="row" onsubmit="return false">
             <label>
               <span class="badge">Email</span>
@@ -80,14 +78,12 @@
               <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
             </label>
 
-            <!-- type=button (nunca submit automático) -->
             <button id="btnLogin" class="btn primary" type="button">Entrar</button>
             <button id="btnClear" class="btn small" type="button">Limpar</button>
 
             <div id="msg" class="item hidden" style="white-space:pre-wrap"></div>
-
             <div class="mini">
-              Se aparecer “sem role”, falta <b>users/{UID}</b> no Firestore com <b>role</b>.
+              Se logar e não tiver role, crie no Firestore: <b>users/{UID}</b> com <b>role</b>.
             </div>
           </form>
         </div>
@@ -98,10 +94,17 @@
   </main>
 
   <script type="module">
-    // PWA (não quebra se falhar)
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(()=>{});
-    }
+    // ✅ DESATIVA SERVICE WORKER AQUI (para não dar cache e travar atualizações)
+    // Se você já tinha sw.js instalado, isso ajuda a parar interferência.
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+    } catch(_) {}
+
+    import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
     const $ = (id) => document.getElementById(id);
     const msg = $("msg");
@@ -122,72 +125,86 @@
     }
     $("btnClear").addEventListener("click", clearForm);
 
-    // Trigger Enter no campo senha
     $("password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") btnLogin.click();
     });
 
-    // Carregar módulos com diagnóstico (se falhar, você vê o erro na tela)
-    let authMod = null;
-    let routerMod = null;
+    // ✅ Carregar firebase.js com diagnóstico (se falhar, você vê na tela)
+    let auth = null;
+    let db = null;
 
-    async function loadModules() {
+    async function loadFirebase() {
       try {
-        authMod = await import("./js/auth.js");
+        // cache-bust no import
+        const fb = await import("./js/firebase.js?v=99");
+        auth = fb.auth;
+        db = fb.db;
+
+        if (!auth || !db) {
+          showMessage(
+            "Erro: ./js/firebase.js carregou, mas não exportou 'auth' e 'db'.\n" +
+            "Abra js/firebase.js e confira se tem:\n" +
+            "export const auth = ...\nexport const db = ...",
+            true
+          );
+          return false;
+        }
+        return true;
       } catch (e) {
         showMessage(
-          "Erro: não consegui carregar ./js/auth.js\n" +
-          "Verifique se existe a pasta js e o arquivo auth.js.\n\n" +
+          "Erro: não consegui carregar ./js/firebase.js\n" +
+          "Verifique se existe a pasta 'js' e o arquivo 'firebase.js'.\n\n" +
           "Detalhe: " + (e?.message || e),
           true
         );
         return false;
       }
-
-      try {
-        routerMod = await import("./js/router.js");
-      } catch (e) {
-        showMessage(
-          "Erro: não consegui carregar ./js/router.js\n" +
-          "Verifique se existe o arquivo router.js na pasta js.\n\n" +
-          "Detalhe: " + (e?.message || e),
-          true
-        );
-        return false;
-      }
-
-      // Checar funções esperadas
-      const ok =
-        typeof authMod.login === "function" &&
-        typeof authMod.logout === "function" &&
-        typeof authMod.watchAuth === "function" &&
-        typeof routerMod.redirectByRoleSafe === "function";
-
-      if (!ok) {
-        showMessage(
-          "Erro: arquivos JS carregaram, mas faltam funções esperadas.\n" +
-          "Preciso que auth.js exporte: login, logout, watchAuth\n" +
-          "e router.js exporte: redirectByRoleSafe",
-          true
-        );
-        return false;
-      }
-
-      return true;
     }
 
-    const modulesOk = await loadModules();
-    if (modulesOk) {
-      // Se já estiver logado, validar e redirecionar
-      authMod.watchAuth(async (user) => {
+    const ok = await loadFirebase();
+    if (!ok) {
+      // para por aqui (mensagem já exibida)
+    } else {
+      // Se já estiver logado, validar role e redirecionar
+      onAuthStateChanged(auth, async (user) => {
         if (!user) return;
         showMessage("Você já está logado. Validando perfil…");
-        const res = await routerMod.redirectByRoleSafe(user);
-        if (!res?.ok) {
-          showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
-          await authMod.logout();
+        const res = await redirectByRole(user.uid);
+        if (!res) {
+          showMessage("Logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
+          await signOut(auth);
         }
       });
+    }
+
+    async function redirectByRole(uid) {
+      try {
+        const ref = doc(db, "users", uid);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return false;
+
+        const data = snap.data() || {};
+        const role = (data.role || "").toLowerCase();
+
+        if (role === "admin") {
+          location.href = "./admin.html";
+          return true;
+        }
+        if (role === "teacher") {
+          location.href = "./teacher.html";
+          return true;
+        }
+        if (role === "student") {
+          location.href = "./student.html";
+          return true;
+        }
+
+        showMessage("Seu usuário existe, mas o campo role está vazio/incorreto: " + String(data.role), true);
+        return false;
+      } catch (e) {
+        showMessage("Erro ao validar role no Firestore: " + (e?.message || e), true);
+        return false;
+      }
     }
 
     async function handleLogin() {
@@ -198,9 +215,8 @@
         showMessage("Preencha email e senha.", true);
         return;
       }
-
-      if (!authMod || !routerMod) {
-        showMessage("Os módulos ainda não carregaram. Recarregue em aba anônima com ?v=2.", true);
+      if (!auth || !db) {
+        showMessage("Firebase não carregou. Reabra em aba anônima com ?v=99.", true);
         return;
       }
 
@@ -209,17 +225,15 @@
         clearMessage();
         showMessage("Entrando…");
 
-        const user = await authMod.login(email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
 
-        showMessage("Login realizado. Validando perfil…");
-        const res = await routerMod.redirectByRoleSafe(user);
+        showMessage("Login ok. Validando perfil…");
+        const okRole = await redirectByRole(uid);
 
-        if (!res?.ok) {
-          showMessage(
-            "Usuário logado, mas sem role no Firestore (users/{UID}).\nVou sair.\nUID: " + (user?.uid || ""),
-            true
-          );
-          await authMod.logout();
+        if (!okRole) {
+          showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.\nUID: " + uid, true);
+          await signOut(auth);
         }
       } catch (e) {
         showMessage("Erro ao entrar: " + (e?.message || e), true);
