@@ -5,18 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IMV • Portal</title>
 
+  <!-- PWA (se você já criou, ótimo; se não existir ainda, não quebra o site) -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0b1220">
-
   <link rel="icon" href="assets/icon-192.png">
+
   <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    /* fallback caso o css/styles.css não tenha sido atualizado ainda */
+    .hidden{display:none!important}
+    .mini{
+      font-size:12px;opacity:.75;margin-top:8px;line-height:1.45
+    }
+  </style>
 </head>
+
 <body>
   <header class="topbar">
     <div class="inner">
       <div class="brand">
-        <div class="logoWrap">
-          <img src="assets/logo-imv.png" alt="Instituto Musical Vale">
+        <div class="logoWrap" aria-hidden="true">
+          <img src="assets/logo-imv.png" alt="Instituto Musical Vale" onerror="this.style.display='none'">
         </div>
         <div class="title">
           <strong>IMV • Instituto Musical Vale</strong>
@@ -33,7 +43,7 @@
         <div class="section">
           <h1>Bem-vindo ao Portal IMV</h1>
           <p>
-            Cursos, matrículas, presença, notas, materiais, biblioteca e financeiro — tudo com login e controle de acesso.
+            Aqui você terá cursos, matrículas, presença, notas, materiais e financeiro — tudo com login e controle de acesso.
           </p>
 
           <div class="hr"></div>
@@ -41,7 +51,7 @@
           <div class="list">
             <div class="item">
               <strong>Admin</strong>
-              <span>Gestão de alunos, matrículas, financeiro, contratos, professores.</span>
+              <span>Gestão de alunos, matrículas, financeiro, contratos e professores.</span>
             </div>
             <div class="item">
               <strong>Professor (prestador)</strong>
@@ -52,6 +62,10 @@
               <span>Materiais, biblioteca, pagamentos e histórico.</span>
             </div>
           </div>
+
+          <div class="mini">
+            Dica: se o navegador “não atualizar”, abra em <b>aba anônima</b>.
+          </div>
         </div>
       </section>
 
@@ -59,10 +73,11 @@
         <div class="section">
           <h2>Entrar</h2>
 
-          <div class="row">
+          <!-- FORM = garante que a tecla Enter funciona -->
+          <form id="loginForm" class="row">
             <label>
               <span class="badge">Email</span>
-              <input id="email" class="input" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" />
+              <input id="email" class="input" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" inputmode="email" />
             </label>
 
             <label>
@@ -70,11 +85,15 @@
               <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
             </label>
 
-            <button id="btnLogin" class="btn primary">Entrar</button>
+            <button id="btnLogin" class="btn primary" type="submit">Entrar</button>
             <button id="btnClear" class="btn small" type="button">Limpar</button>
 
-            <div id="msg" class="item" style="display:none; white-space:pre-wrap"></div>
-          </div>
+            <div id="msg" class="item hidden" style="white-space:pre-wrap"></div>
+
+            <div class="mini">
+              Se aparecer “sem role”, significa que falta <b>users/{UID}</b> no Firestore com <b>role</b>.
+            </div>
+          </form>
         </div>
       </section>
     </div>
@@ -83,65 +102,103 @@
   </main>
 
   <script type="module">
-    import { login, watchAuth, logout } from "./js/auth.js";
+    // IMPORTANTE:
+    // Este index.html depende dos seus arquivos já existentes:
+    // - js/auth.js (exporta login, logout, watchAuth)
+    // - js/router.js (exporta redirectByRoleSafe)
+    //
+    // Se algum desses nomes estiver diferente no seu repositório, me mande print da pasta /js.
+
+    import { login, logout, watchAuth } from "./js/auth.js";
     import { redirectByRoleSafe } from "./js/router.js";
 
-    // PWA
+    // PWA (não quebra se falhar)
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(()=>{});
     }
 
     const $ = (id) => document.getElementById(id);
+    const form = $("loginForm");
     const msg = $("msg");
+    const btnLogin = $("btnLogin");
 
-    function showMessage(text, isError=false){
-      msg.style.display = "block";
+    function showMessage(text, isError=false) {
+      msg.classList.remove("hidden");
       msg.textContent = text;
       msg.style.borderColor = isError ? "rgba(255,92,122,.45)" : "rgba(72,213,151,.35)";
       msg.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
     }
 
-    function clearForm(){
+    function clearMessage() {
+      msg.classList.add("hidden");
+      msg.textContent = "";
+    }
+
+    function clearForm() {
       $("email").value = "";
       $("password").value = "";
-      msg.style.display = "none";
+      clearMessage();
+      $("email").focus();
     }
+
     $("btnClear").addEventListener("click", clearForm);
 
+    // 1) Se já estiver logado, validar role e redirecionar
     watchAuth(async (user) => {
       if (!user) return;
       showMessage("Você já está logado. Validando perfil…");
       const res = await redirectByRoleSafe(user);
-      if (!res.ok) {
-        showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
+      if (!res?.ok) {
+        showMessage(
+          "Usuário logado, mas sem role no Firestore (users/{UID}).\nVou sair para você tentar novamente.",
+          true
+        );
         await logout();
       }
     });
 
-    $("btnLogin").addEventListener("click", async () => {
+    // 2) Login com botão OU tecla Enter (submit)
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault(); // evita recarregar a página
+
       const email = $("email").value.trim();
       const password = $("password").value;
 
-      if (!email || !password) { showMessage("Preencha email e senha.", true); return; }
+      if (!email || !password) {
+        showMessage("Preencha email e senha.", true);
+        return;
+      }
 
-      $("btnLogin").disabled = true;
-      showMessage("Entrando…");
+      // trava para evitar “clique duplo”
+      btnLogin.disabled = true;
 
       try {
+        clearMessage();
+        showMessage("Entrando…");
+
         const user = await login(email, password);
+
         showMessage("Login realizado. Validando perfil…");
         const res = await redirectByRoleSafe(user);
 
-        if (!res.ok) {
-          showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
+        if (!res?.ok) {
+          showMessage(
+            "Usuário logado, mas sem role no Firestore (users/{UID}).\nVou sair para você tentar novamente.\nUID: " + (user?.uid || ""),
+            true
+          );
           await logout();
         }
       } catch (e) {
-        showMessage("Erro ao entrar: " + (e?.message || e), true);
+        // mensagem amigável
+        const raw = (e && e.message) ? e.message : String(e);
+        showMessage("Erro ao entrar: " + raw, true);
       } finally {
-        $("btnLogin").disabled = false;
+        btnLogin.disabled = false;
       }
     });
+
+    // Foco inicial
+    $("email").focus();
   </script>
 </body>
 </html>
