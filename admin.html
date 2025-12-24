@@ -1,44 +1,152 @@
 <!doctype html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1b2b" />
   <title>IMV • Admin</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topLeft">
-      <img src="./assets/logo-imv.png" class="logoSm" alt="IMV">
-      <div>
-        <div class="topTitle">Painel Admin</div>
-        <div class="muted tiny" id="who">Carregando…</div>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <img src="./assets/logo-imv.png" alt="IMV" />
+        <div class="t">
+          <div class="h">Painel Admin</div>
+          <div class="s"><span id="meName">...</span> • (admin)</div>
+        </div>
+      </div>
+      <button id="btnLogout" class="secondary">Sair</button>
+    </div>
+
+    <div id="fatal" class="msg err" style="display:none;"></div>
+
+    <div class="card">
+      <div class="kpis">
+        <div class="kpi"><div class="n" id="countUsers">0</div><div class="l">Usuários</div></div>
+        <div class="kpi"><div class="n" id="countCourses">0</div><div class="l">Cursos</div></div>
+        <div class="kpi"><div class="n" id="countClasses">0</div><div class="l">Turmas</div></div>
+        <div class="kpi"><div class="n" id="countEnroll">0</div><div class="l">Matrículas</div></div>
       </div>
     </div>
-    <button class="btn danger" id="btnLogout">Sair</button>
-  </header>
 
-  <main class="page">
-    <section class="card">
-      <h2>Admin</h2>
-      <p class="muted">Base estável. Depois voltamos com cadastros/curso/turma/matrícula.</p>
-    </section>
-  </main>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Cadastrar Aluno (gera senha randômica)</h2>
+        <form id="formStudent">
+          <div class="formRow">
+            <label>Nome do aluno</label>
+            <input id="studentName" class="input" placeholder="Nome completo" />
+          </div>
+          <div class="formRow">
+            <label>Email do aluno (obrigatório)</label>
+            <input id="studentEmail" class="input" type="email" placeholder="email@exemplo.com" required />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar aluno</button>
+          </div>
+          <div id="msgStudent" class="msg ok"></div>
+          <div class="muted" style="margin-top:10px;">
+            Cria usuário no Authentication e perfil em Firestore (users/{uid}) com role <b>student</b>.
+          </div>
+        </form>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Cadastrar Professor (prestador)</h2>
+        <form id="formTeacher">
+          <div class="formRow">
+            <label>Nome do professor</label>
+            <input id="teacherName" class="input" placeholder="Nome completo" />
+          </div>
+          <div class="formRow">
+            <label>Email do professor (obrigatório)</label>
+            <input id="teacherEmail" class="input" type="email" placeholder="email@exemplo.com" required />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar professor</button>
+          </div>
+          <div id="msgTeacher" class="msg ok"></div>
+          <div class="muted" style="margin-top:10px;">
+            Cria usuário no Authentication e perfil em Firestore (users/{uid}) com role <b>teacher</b>.
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Cursos</h2>
+        <form id="formCourse">
+          <div class="formRow">
+            <label>Título do curso</label>
+            <input id="courseTitle" class="input" placeholder="Ex: Canto Popular" />
+          </div>
+          <div class="formRow">
+            <label>Descrição</label>
+            <textarea id="courseDesc" class="input" rows="3" placeholder="Resumo do curso..."></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit">Criar curso</button>
+          </div>
+          <div id="msgCourse" class="msg ok"></div>
+        </form>
+
+        <div id="coursesList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Turmas</h2>
+        <form id="formClass">
+          <div class="formRow">
+            <label>Nome da turma</label>
+            <input id="className" class="input" placeholder="Ex: Turma 01 - Canto" />
+          </div>
+          <div class="formRow">
+            <label>Professor</label>
+            <select id="classTeacher" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Curso</label>
+            <select id="classCourse" class="input"></select>
+          </div>
+          <div class="actions">
+            <button type="submit">Criar turma</button>
+          </div>
+          <div id="msgClass" class="msg ok"></div>
+        </form>
+
+        <div id="classesList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Matrículas (manual por UID)</h2>
+        <form id="formEnroll">
+          <div class="formRow">
+            <label>UID do aluno</label>
+            <input id="enrollStudentUid" class="input" placeholder="Cole o UID do aluno (users/{uid})" />
+          </div>
+          <div class="formRow">
+            <label>ID da turma</label>
+            <input id="enrollClassId" class="input" placeholder="Cole o ID do documento em classes/{id}" />
+          </div>
+          <div class="actions">
+            <button type="submit">Matricular</button>
+          </div>
+          <div id="msgEnroll" class="msg ok"></div>
+        </form>
+
+        <div id="enrollList" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <div class="footer">© IMV • Admin • Core estável</div>
+  </div>
 
   <script type="module">
-    import { guardPage } from "./js/router.js";
-    import { signOut } from "./js/auth.js";
-
-    const gate = await guardPage(["admin"]);
-    document.getElementById("btnLogout").addEventListener("click", async () => {
-      await signOut();
-      window.location.replace("./index.html");
-    });
-
-    if (gate) {
-      document.getElementById("who").textContent = (gate.profile?.name || gate.user.email) + " • (admin)";
-      // depois: await import("./js/admin.js");
-    }
+    import { startRouter } from "./js/router.js";
+    startRouter();
   </script>
+  <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
