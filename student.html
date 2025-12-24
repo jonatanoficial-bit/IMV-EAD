@@ -1,44 +1,47 @@
 <!doctype html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1b2b" />
   <title>IMV • Aluno</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topLeft">
-      <img src="./assets/logo-imv.png" class="logoSm" alt="IMV">
-      <div>
-        <div class="topTitle">Área do Aluno</div>
-        <div class="muted tiny" id="who">Carregando…</div>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <img src="./assets/logo-imv.png" alt="IMV" />
+        <div class="t">
+          <div class="h">Painel Aluno</div>
+          <div class="s"><span id="meName">...</span> • (student)</div>
+        </div>
+      </div>
+      <button id="btnLogout" class="secondary">Sair</button>
+    </div>
+
+    <div id="fatal" class="msg err" style="display:none;"></div>
+
+    <div class="grid two">
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:18px;">Minhas matrículas</h2>
+        <div id="enrollList" class="muted">Carregando...</div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:18px;">Meu histórico (últimos registros)</h2>
+        <div id="attList" class="muted">Carregando...</div>
       </div>
     </div>
-    <button class="btn danger" id="btnLogout">Sair</button>
-  </header>
 
-  <main class="page">
-    <section class="card">
-      <h2>Aluno</h2>
-      <p class="muted">Base estável. Depois colocamos cursos, materiais e histórico.</p>
-    </section>
-  </main>
+    <div class="footer">© IMV • Aluno • Core estável</div>
+  </div>
 
   <script type="module">
-    import { guardPage } from "./js/router.js";
-    import { signOut } from "./js/auth.js";
-
-    const gate = await guardPage(["student"]);
-    document.getElementById("btnLogout").addEventListener("click", async () => {
-      await signOut();
-      window.location.replace("./index.html");
-    });
-
-    if (gate) {
-      document.getElementById("who").textContent = (gate.profile?.name || gate.user.email) + " • (student)";
-      // depois: await import("./js/student.js");
-    }
+    import { startRouter } from "./js/router.js";
+    startRouter();
   </script>
+  <script type="module" src="./js/student.js"></script>
 </body>
 </html>
