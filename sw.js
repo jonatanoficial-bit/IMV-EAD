@@ -1,23 +1,45 @@
-// sw.js — MODO SAFE (SEM CACHE)
-// Objetivo: parar tela piscando / branco causado por cache antigo/corrompido.
-// Quando tudo estabilizar, a gente reativa cache com cuidado.
+// sw.js — cache simples e SEGURO (sem arquivos inexistentes)
+const CACHE_NAME = "imv-ead-v2";
+
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./admin.html",
+  "./teacher.html",
+  "./student.html",
+  "./css/styles.css",
+  "./js/firebase.js",
+  "./js/auth.js",
+  "./js/router.js",
+  "./js/admin.js",
+  "./js/teacher.js",
+  "./js/student.js",
+  "./manifest.webmanifest",
+  "./assets/logo-imv.png"
+];
 
 self.addEventListener("install", (event) => {
-  // ativa imediatamente
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil((async () => {
-    // apaga TODOS os caches antigos pra não “puxar JS velho”
-    const keys = await caches.keys();
-    await Promise.all(keys.map((k) => caches.delete(k)));
-    await self.clients.claim();
-  })());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))
+      )
+    )
+  );
+  self.clients.claim();
 });
 
-// Não intercepta fetch => sempre pega da rede (GitHub Pages)
-// Isso elimina “JS antigo” e loop do SW.
 self.addEventListener("fetch", (event) => {
-  return;
+  event.respondWith(
+    caches.match(event.request).then(
+      (cached) => cached || fetch(event.request)
+    )
+  );
 });
