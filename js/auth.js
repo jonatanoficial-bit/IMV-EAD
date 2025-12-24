@@ -1,5 +1,6 @@
 // js/auth.js
 import { auth, db } from "./firebase.js";
+
 import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -13,11 +14,10 @@ import {
 
 export function normalizeRole(role) {
   const r = String(role || "").trim().toLowerCase();
-  // padroniza possíveis variações
   if (r === "professor" || r === "prof") return "teacher";
-  if (r === "aluno" || r === "student") return "student";
-  if (r === "admin" || r === "adm") return "admin";
-  return r; // teacher/student/admin ou vazio
+  if (r === "aluno") return "student";
+  if (r === "adm") return "admin";
+  return r; // teacher/admin/student
 }
 
 export async function signIn(email, password) {
@@ -29,50 +29,28 @@ export async function signOut() {
   await fbSignOut(auth);
 }
 
-export function watchAuth(callback) {
-  return onAuthStateChanged(auth, callback);
+export function watchAuth(cb) {
+  return onAuthStateChanged(auth, cb);
 }
 
-export async function getMyProfile() {
-  const user = auth.currentUser;
-  if (!user) {
-    return { user: null, profile: null, role: null };
-  }
-
-  const ref = doc(db, "users", user.uid);
+export async function getProfileByUid(uid) {
+  const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
+  if (!snap.exists()) return { exists: false, profile: null };
+  return { exists: true, profile: snap.data() || {} };
+}
 
-  if (!snap.exists()) {
-    return { user, profile: null, role: null, error: "Perfil não existe em users/{uid}." };
-  }
+export async function getMyProfileOrThrow() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("NOT_LOGGED");
 
-  const profile = snap.data() || {};
-  const active = profile.active === true;
+  const { exists, profile } = await getProfileByUid(user.uid);
+  if (!exists) throw new Error("PROFILE_NOT_FOUND");
+
+  if (profile.active !== true) throw new Error("USER_INACTIVE");
+
   const role = normalizeRole(profile.role);
-
-  if (!active) {
-    return { user, profile, role, error: "Usuário inativo (active != true)." };
-  }
-
-  if (!role || !["admin", "teacher", "student"].includes(role)) {
-    return { user, profile, role: null, error: "Role inválida ou vazia. Use admin/teacher/student." };
-  }
+  if (!["admin", "teacher", "student"].includes(role)) throw new Error("ROLE_INVALID");
 
   return { user, profile, role };
-}
-
-export function showBanner(msg, type = "error") {
-  const el = document.getElementById("banner");
-  if (!el) {
-    alert(msg);
-    return;
-  }
-  el.className = `banner ${type}`;
-  el.textContent = msg;
-  el.style.display = "block";
-}
-
-export function hideBanner() {
-  const el = document.getElementById("banner");
-  if (el) el.style.display = "none";
 }
