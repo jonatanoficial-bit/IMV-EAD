@@ -1,9 +1,8 @@
 // js/auth.js
 import { auth, db } from "./firebase.js";
-
 import {
   signInWithEmailAndPassword,
-  signOut as fbSignOut,
+  signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
@@ -12,45 +11,57 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-export function normalizeRole(role) {
-  const r = String(role || "").trim().toLowerCase();
-  if (r === "professor" || r === "prof") return "teacher";
-  if (r === "aluno") return "student";
-  if (r === "adm") return "admin";
-  return r; // teacher/admin/student
+export function qs(sel, root = document) {
+  return root.querySelector(sel);
 }
 
-export async function signIn(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+export function qsa(sel, root = document) {
+  return Array.from(root.querySelectorAll(sel));
+}
+
+export function safeText(el, txt) {
+  if (!el) return;
+  el.textContent = txt ?? "";
+}
+
+export function setBusy(btn, busy, label = "Entrar") {
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.dataset._label = btn.dataset._label || btn.textContent;
+  btn.textContent = busy ? "Carregando..." : (label || btn.dataset._label);
+}
+
+export async function login(email, password) {
+  if (!email || !password) throw new Error("Preencha e-mail e senha.");
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
 }
 
-export async function signOut() {
-  await fbSignOut(auth);
+export async function logout() {
+  await signOut(auth);
 }
 
-export function watchAuth(cb) {
+export function onAuth(cb) {
   return onAuthStateChanged(auth, cb);
 }
 
-export async function getProfileByUid(uid) {
+export async function getMyProfile(uid) {
+  if (!uid) return null;
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return { exists: false, profile: null };
-  return { exists: true, profile: snap.data() || {} };
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
 }
 
-export async function getMyProfileOrThrow() {
-  const user = auth.currentUser;
-  if (!user) throw new Error("NOT_LOGGED");
+export function friendlyFirebaseError(err) {
+  const msg = (err?.message || "").toLowerCase();
 
-  const { exists, profile } = await getProfileByUid(user.uid);
-  if (!exists) throw new Error("PROFILE_NOT_FOUND");
+  if (msg.includes("auth/invalid-credential")) return "Credenciais inválidas. Confira e-mail e senha.";
+  if (msg.includes("auth/wrong-password")) return "Senha incorreta.";
+  if (msg.includes("auth/user-not-found")) return "Usuário não encontrado.";
+  if (msg.includes("auth/too-many-requests")) return "Muitas tentativas. Aguarde e tente novamente.";
+  if (msg.includes("api-key-not-valid")) return "Configuração do Firebase inválida (API KEY). Verifique js/firebase.js.";
+  if (msg.includes("missing or insufficient permissions")) return "Permissão insuficiente no Firestore (Rules).";
 
-  if (profile.active !== true) throw new Error("USER_INACTIVE");
-
-  const role = normalizeRole(profile.role);
-  if (!["admin", "teacher", "student"].includes(role)) throw new Error("ROLE_INVALID");
-
-  return { user, profile, role };
+  return err?.message || "Erro ao entrar.";
 }
