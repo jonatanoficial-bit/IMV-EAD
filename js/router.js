@@ -1,80 +1,71 @@
 // js/router.js
-import { watchAuth, getUserRole, logout } from "./auth.js";
+import { signOut, getMyProfile, showBanner, hideBanner } from "./auth.js";
+
+export function roleToHome(role) {
+  if (role === "admin") return "./admin.html";
+  if (role === "teacher") return "./teacher.html";
+  if (role === "student") return "./student.html";
+  return "./index.html";
+}
 
 /**
- * Detecta automaticamente o base path do GitHub Pages:
- * Ex: /IMV-EAD/
+ * GATE DE SEGURANÇA:
+ * - Lê users/{uid}
+ * - Valida active + role
+ * - Se role não bater com a página, redireciona para a home correta
+ * - Se der erro de perfil/role, mostra erro e desloga (NÃO cai pra aluno por padrão)
  */
-function detectBasePath() {
-  const p = window.location.pathname || "/";
-  const parts = p.split("/").filter(Boolean);
-  const isGithubPages = window.location.hostname.endsWith("github.io");
-  if (isGithubPages && parts.length >= 1) return `/${parts[0]}/`;
-  return "/";
-}
-
-export const BASE = detectBasePath();
-
-export function go(path) {
-  const clean = path.replace(/^\//, "");
-  const target = BASE + clean;
-
-  // Evita recarregar a mesma página (reduz flicker)
-  if (window.location.pathname.endsWith(clean)) return;
-
-  window.location.href = target;
-}
-
-export function requireAuth(allowedRoles = []) {
-  watchAuth(async (user) => {
-    if (!user) {
-      go("index.html");
-      return;
-    }
-
-    let role = null;
-    try {
-      role = await getUserRole(user.uid);
-    } catch (e) {
-      // Se Firestore bloquear, não entra em loop: faz logout e volta
-      console.error("Erro ao ler role:", e);
-      alert("Erro ao validar perfil (Firestore). Vou sair e voltar ao login.");
-      await logout();
-      go("index.html");
-      return;
-    }
-
-    if (!role) {
-      alert("Seu usuário está logado, mas ainda NÃO tem 'role' no Firestore. Vou sair para evitar loop.");
-      await logout();
-      go("index.html");
-      return;
-    }
-
-    if (allowedRoles.length && !allowedRoles.includes(role)) {
-      alert("Acesso não autorizado para este perfil. Vou sair.");
-      await logout();
-      go("index.html");
-      return;
-    }
-  });
-}
-
-export async function redirectByRoleSafe(user) {
-  let role = null;
+export async function requireRole(allowedRoles = []) {
+  hideBanner();
 
   try {
-    role = await getUserRole(user.uid);
+    const { user, profile, role, error } = await getMyProfile();
+
+    if (!user) {
+      showBanner("Você precisa estar logado.", "warn");
+      window.location.href = "./index.html";
+      return null;
+    }
+
+    if (error) {
+      showBanner(`Erro de perfil: ${error} (UID: ${user.uid})`, "error");
+      await signOut();
+      return null;
+    }
+
+    // atualiza UI se existir
+    const nameEl = document.getElementById("whoName");
+    const roleEl = document.getElementById("whoRole");
+    if (nameEl) nameEl.textContent = profile?.name || user.email || "Usuário";
+    if (roleEl) roleEl.textContent = role;
+
+    // Se a página exige um role específico
+    if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
+      if (!allowedRoles.includes(role)) {
+        // NÃO manda pro aluno “por padrão”. Manda para a home correta do role real.
+        const dest = roleToHome(role);
+        showBanner(`Acesso negado para esta área. Indo para sua área: ${role}.`, "warn");
+        setTimeout(() => (window.location.href = dest), 700);
+        return null;
+      }
+    }
+
+    return { user, profile, role };
   } catch (e) {
-    console.error("Erro ao ler role:", e);
-    return { ok: false, reason: "firestore_error", error: e };
+    showBanner(`Erro ao validar login: ${e?.message || e}`, "error");
+    try { await signOut(); } catch {}
+    return null;
   }
+}
 
-  if (!role) return { ok: false, reason: "missing_role" };
-
-  if (role === "admin") { go("admin.html"); return { ok: true, role }; }
-  if (role === "teacher") { go("teacher.html"); return { ok: true, role }; }
-  if (role === "student") { go("student.html"); return { ok: true, role }; }
-
-  return { ok: false, reason: "unknown_role", role };
+export function bindLogoutButton() {
+  const btn = document.getElementById("btnLogout");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    try {
+      await signOut();
+    } finally {
+      window.location.href = "./index.html";
+    }
+  });
 }
