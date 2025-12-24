@@ -2,248 +2,38 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IMV • Portal</title>
-
-  <meta name="theme-color" content="#0b1220">
-  <link rel="icon" href="assets/logo-imv.png">
-  <link rel="stylesheet" href="css/styles.css" />
-
-  <style>
-    .hidden{display:none!important}
-    .mini{font-size:12px;opacity:.78;margin-top:8px;line-height:1.45}
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IMV • Login</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+  <meta name="theme-color" content="#0b1220" />
 </head>
-
 <body>
-  <header class="topbar">
-    <div class="inner">
+  <main class="page">
+    <section class="card">
       <div class="brand">
-        <div class="logoWrap" aria-hidden="true">
-          <img src="assets/logo-imv.png" alt="Instituto Musical Vale" onerror="this.style.display='none'">
-        </div>
-        <div class="title">
-          <strong>IMV • Instituto Musical Vale</strong>
-          <span>Portal (Aluno • Professor • Admin)</span>
+        <img src="./assets/logo-imv.png" alt="IMV" class="logo" />
+        <div>
+          <h1>IMV EAD</h1>
+          <p class="muted">Acesso do Admin, Professor e Aluno</p>
         </div>
       </div>
-      <span class="badge">Mobile-first • GitHub Pages</span>
-    </div>
-  </header>
 
-  <main class="container">
-    <div class="grid">
-      <section class="card">
-        <div class="section">
-          <h1>Bem-vindo ao Portal IMV</h1>
-          <p>
-            Cursos, matrículas, presença, notas, materiais e financeiro — tudo com login e controle de acesso.
-          </p>
+      <div id="msg" class="msg" style="display:none;"></div>
 
-          <div class="hr"></div>
+      <label class="label">Email</label>
+      <input id="email" class="input" type="email" autocomplete="username" placeholder="seuemail@..." />
 
-          <div class="list">
-            <div class="item">
-              <strong>Admin</strong>
-              <span>Gestão de alunos, matrículas, financeiro, contratos e professores.</span>
-            </div>
-            <div class="item">
-              <strong>Professor (prestador)</strong>
-              <span>Chamada, notas, comentários, turmas e materiais.</span>
-            </div>
-            <div class="item">
-              <strong>Aluno</strong>
-              <span>Materiais, biblioteca, pagamentos e histórico.</span>
-            </div>
-          </div>
+      <label class="label">Senha</label>
+      <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••" />
 
-          <div class="mini">
-            Se algo “não atualizar”, abra em <b>aba anônima</b> e use <b>?v=99</b> no final do link.
-          </div>
-        </div>
-      </section>
+      <button id="btnLogin" class="btn primary">Entrar</button>
 
-      <section class="card">
-        <div class="section">
-          <h2>Entrar</h2>
-
-          <form id="loginForm" class="row" onsubmit="return false">
-            <label>
-              <span class="badge">Email</span>
-              <input id="email" class="input" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" inputmode="email" />
-            </label>
-
-            <label>
-              <span class="badge">Senha</span>
-              <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
-            </label>
-
-            <button id="btnLogin" class="btn primary" type="button">Entrar</button>
-            <button id="btnClear" class="btn small" type="button">Limpar</button>
-
-            <div id="msg" class="item hidden" style="white-space:pre-wrap"></div>
-            <div class="mini">
-              Se logar e não tiver role, crie no Firestore: <b>users/{UID}</b> com <b>role</b>.
-            </div>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <div class="footer">© IMV • Portal EAD • Versão inicial</div>
+      <p class="muted tiny">
+        Se o login der erro “perfil não encontrado”, o admin precisa criar seu usuário em Firestore/users.
+      </p>
+    </section>
   </main>
 
-  <script type="module">
-    // ✅ DESATIVA SERVICE WORKER AQUI (para não dar cache e travar atualizações)
-    // Se você já tinha sw.js instalado, isso ajuda a parar interferência.
-    try {
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (const r of regs) await r.unregister();
-      }
-    } catch(_) {}
-
-    import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
-    const $ = (id) => document.getElementById(id);
-    const msg = $("msg");
-    const btnLogin = $("btnLogin");
-
-    function showMessage(text, isError=false) {
-      msg.classList.remove("hidden");
-      msg.textContent = text;
-      msg.style.borderColor = isError ? "rgba(255,92,122,.45)" : "rgba(72,213,151,.35)";
-      msg.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
-    }
-    function clearMessage(){ msg.classList.add("hidden"); msg.textContent=""; }
-    function clearForm(){
-      $("email").value = "";
-      $("password").value = "";
-      clearMessage();
-      $("email").focus();
-    }
-    $("btnClear").addEventListener("click", clearForm);
-
-    $("password").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") btnLogin.click();
-    });
-
-    // ✅ Carregar firebase.js com diagnóstico (se falhar, você vê na tela)
-    let auth = null;
-    let db = null;
-
-    async function loadFirebase() {
-      try {
-        // cache-bust no import
-        const fb = await import("./js/firebase.js?v=99");
-        auth = fb.auth;
-        db = fb.db;
-
-        if (!auth || !db) {
-          showMessage(
-            "Erro: ./js/firebase.js carregou, mas não exportou 'auth' e 'db'.\n" +
-            "Abra js/firebase.js e confira se tem:\n" +
-            "export const auth = ...\nexport const db = ...",
-            true
-          );
-          return false;
-        }
-        return true;
-      } catch (e) {
-        showMessage(
-          "Erro: não consegui carregar ./js/firebase.js\n" +
-          "Verifique se existe a pasta 'js' e o arquivo 'firebase.js'.\n\n" +
-          "Detalhe: " + (e?.message || e),
-          true
-        );
-        return false;
-      }
-    }
-
-    const ok = await loadFirebase();
-    if (!ok) {
-      // para por aqui (mensagem já exibida)
-    } else {
-      // Se já estiver logado, validar role e redirecionar
-      onAuthStateChanged(auth, async (user) => {
-        if (!user) return;
-        showMessage("Você já está logado. Validando perfil…");
-        const res = await redirectByRole(user.uid);
-        if (!res) {
-          showMessage("Logado, mas sem role no Firestore (users/{UID}). Vou sair.", true);
-          await signOut(auth);
-        }
-      });
-    }
-
-    async function redirectByRole(uid) {
-      try {
-        const ref = doc(db, "users", uid);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) return false;
-
-        const data = snap.data() || {};
-        const role = (data.role || "").toLowerCase();
-
-        if (role === "admin") {
-          location.href = "./admin.html";
-          return true;
-        }
-        if (role === "teacher") {
-          location.href = "./teacher.html";
-          return true;
-        }
-        if (role === "student") {
-          location.href = "./student.html";
-          return true;
-        }
-
-        showMessage("Seu usuário existe, mas o campo role está vazio/incorreto: " + String(data.role), true);
-        return false;
-      } catch (e) {
-        showMessage("Erro ao validar role no Firestore: " + (e?.message || e), true);
-        return false;
-      }
-    }
-
-    async function handleLogin() {
-      const email = $("email").value.trim();
-      const password = $("password").value;
-
-      if (!email || !password) {
-        showMessage("Preencha email e senha.", true);
-        return;
-      }
-      if (!auth || !db) {
-        showMessage("Firebase não carregou. Reabra em aba anônima com ?v=99.", true);
-        return;
-      }
-
-      btnLogin.disabled = true;
-      try {
-        clearMessage();
-        showMessage("Entrando…");
-
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        const uid = cred.user.uid;
-
-        showMessage("Login ok. Validando perfil…");
-        const okRole = await redirectByRole(uid);
-
-        if (!okRole) {
-          showMessage("Usuário logado, mas sem role no Firestore (users/{UID}). Vou sair.\nUID: " + uid, true);
-          await signOut(auth);
-        }
-      } catch (e) {
-        showMessage("Erro ao entrar: " + (e?.message || e), true);
-      } finally {
-        btnLogin.disabled = false;
-      }
-    }
-
-    btnLogin.addEventListener("click", handleLogin);
-    $("email").focus();
-  </script>
+  <script type="module" src="./js/login.js"></script>
 </body>
 </html>
