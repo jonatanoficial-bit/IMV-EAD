@@ -2,37 +2,43 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>IMV • Aluno</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="inner">
-      <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
-        <div class="title">
-          <strong>Painel Aluno</strong>
-          <span id="who">carregando…</span>
-        </div>
+    <div class="topLeft">
+      <img src="./assets/logo-imv.png" class="logoSm" alt="IMV">
+      <div>
+        <div class="topTitle">Área do Aluno</div>
+        <div class="muted tiny" id="who">Carregando…</div>
       </div>
-      <button id="btnLogout" class="btn danger small">Sair</button>
     </div>
+    <button class="btn danger" id="btnLogout">Sair</button>
   </header>
 
-  <main class="container">
+  <main class="page">
     <section class="card">
-      <div class="section">
-        <h2>Em breve</h2>
-        <p style="margin:0">
-          Próxima etapa: materiais, biblioteca musical, financeiro e histórico.
-        </p>
-      </div>
+      <h2>Aluno</h2>
+      <p class="muted">Base estável. Depois colocamos cursos, materiais e histórico.</p>
     </section>
-
-    <div class="footer">IMV • Aluno • Versão inicial</div>
   </main>
 
-  <script type="module" src="js/student.js"></script>
+  <script type="module">
+    import { guardPage } from "./js/router.js";
+    import { signOut } from "./js/auth.js";
+
+    const gate = await guardPage(["student"]);
+    document.getElementById("btnLogout").addEventListener("click", async () => {
+      await signOut();
+      window.location.replace("./index.html");
+    });
+
+    if (gate) {
+      document.getElementById("who").textContent = (gate.profile?.name || gate.user.email) + " • (student)";
+      // depois: await import("./js/student.js");
+    }
+  </script>
 </body>
 </html>
