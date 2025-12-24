@@ -2,174 +2,104 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IMV • Professor</title>
-
-  <meta name="theme-color" content="#0b1220">
-  <link rel="icon" href="assets/logo-imv.png">
-  <link rel="stylesheet" href="css/styles.css" />
-
-  <style>
-    .grid{
-      display:grid; gap:14px;
-      grid-template-columns: 1fr;
-    }
-    @media(min-width: 980px){
-      .grid{ grid-template-columns: 1fr 1fr; align-items:start; }
-    }
-    .table{
-      width:100%;
-      border-collapse: collapse;
-      overflow:hidden;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-    }
-    .table th, .table td{
-      padding: 10px 10px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      font-size: 13px;
-      vertical-align: top;
-    }
-    .table th{
-      text-align:left;
-      color: rgba(255,255,255,.78);
-      font-weight: 800;
-      background: rgba(255,255,255,.04);
-    }
-    .muted{ color: rgba(255,255,255,.65); font-size: 13px; line-height:1.5; }
-    .pill{
-      display:inline-flex;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.05);
-      font-size:12px;
-      color: rgba(255,255,255,.78);
-      gap:8px;
-      align-items:center;
-      white-space:nowrap;
-    }
-    .actionsRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .btn.inline{ width:auto !important; }
-    select.input{ appearance:none; }
-    .miniNote{ font-size:12px; opacity:.78; line-height:1.45; margin-top:8px; }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Professor • IMV</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+  <meta name="theme-color" content="#0b1220" />
 </head>
-
 <body>
-  <header class="topbar">
-    <div class="inner">
+  <div class="app">
+    <header class="topbar">
       <div class="brand">
-        <div class="logoWrap" aria-hidden="true">
-          <img src="assets/logo-imv.png" alt="Instituto Musical Vale" onerror="this.style.display='none'">
-        </div>
-        <div class="title">
-          <strong>Painel Professor • IMV</strong>
-          <span id="who">carregando…</span>
+        <img src="./assets/logo-imv.png" alt="IMV" class="logo" />
+        <div class="brandText">
+          <div class="title">Painel Professor • IMV</div>
+          <div class="subtitle"><span id="whoName">...</span> • (<span id="whoRole">...</span>)</div>
         </div>
       </div>
 
-      <div class="topActions">
-        <span class="badge">teacher</span>
-        <button id="btnLogout" class="btn inline">Sair</button>
+      <div class="topbarActions">
+        <span class="pill" id="pillRole">teacher</span>
+        <button class="btn danger" id="btnLogout">Sair</button>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="container">
-    <section class="card">
-      <div class="section">
+    <main class="container">
+      <div id="banner" class="banner" style="display:none;"></div>
+
+      <section class="card">
         <h2>Minha rotina</h2>
-        <p class="muted">
-          Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.
-        </p>
+        <p class="muted">Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.</p>
 
-        <div class="actionsRow" style="margin-top:10px;">
-          <span class="pill">Turma</span>
-          <select id="selClass" class="input" style="min-width: 260px;"></select>
-
-          <span class="pill">Data</span>
-          <input id="lessonDate" class="input" type="date" style="min-width: 170px;" />
-
-          <button id="btnLoad" class="btn inline" type="button">Carregar alunos</button>
+        <div class="row">
+          <label class="label">Turma</label>
+          <select id="classSelect" class="input">
+            <option value="">Carregando turmas...</option>
+          </select>
         </div>
 
-        <div class="miniNote">
-          Dica: escolha a turma e a data da aula. Depois marque presença e salve.
-        </div>
-      </div>
-
-      <div class="hr"></div>
-
-      <div class="section grid">
-        <div class="card" style="box-shadow:none">
-          <div class="section">
-            <h2>Alunos matriculados</h2>
-            <p class="muted">Lista vem de <code>enrollments</code> filtrando pela turma selecionada.</p>
-
-            <div class="actionsRow" style="margin: 10px 0;">
-              <span class="pill">Total: <b id="studentsCount">0</b></span>
-              <button id="btnSaveAll" class="btn primary inline" type="button">Salvar presença/nota/comentário</button>
-            </div>
-
-            <div style="overflow:auto;">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Aluno</th>
-                    <th>Presença</th>
-                    <th>Nota</th>
-                    <th>Comentário</th>
-                  </tr>
-                </thead>
-                <tbody id="studentsTbody">
-                  <tr><td colspan="4" class="muted">Selecione uma turma e clique em “Carregar alunos”.</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div id="outSave" class="item" style="display:none; white-space:pre-wrap; margin-top:12px;"></div>
-          </div>
+        <div class="row">
+          <label class="label">Data</label>
+          <input id="dateInput" class="input" type="date" />
         </div>
 
-        <div class="card" style="box-shadow:none">
-          <div class="section">
-            <h2>Histórico da turma (últimas aulas)</h2>
-            <p class="muted">Mostra registros salvos em <code>attendance</code>.</p>
-
-            <div class="actionsRow" style="margin: 10px 0;">
-              <button id="btnReloadHistory" class="btn inline" type="button">Recarregar histórico</button>
-              <span class="pill">Registros: <b id="histCount">0</b></span>
-            </div>
-
-            <div style="overflow:auto;">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Aluno</th>
-                    <th>Presença</th>
-                    <th>Nota</th>
-                  </tr>
-                </thead>
-                <tbody id="histTbody">
-                  <tr><td colspan="4" class="muted">Selecione uma turma para ver o histórico.</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="miniNote">
-              Próximo passo: biblioteca/materiais por turma, e avisos.
-            </div>
-          </div>
+        <div class="row">
+          <button id="btnLoadStudents" class="btn">Carregar alunos</button>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <div class="footer">IMV • Professor • Presença + Notas + Comentários</div>
-  </main>
+      <section class="card">
+        <h3>Alunos matriculados</h3>
+        <p class="muted">Lista vem de enrollments filtrando pela turma selecionada.</p>
 
-  <script type="module" src="js/teacher.js"></script>
+        <div class="row">
+          <span class="pill">Total: <b id="totalStudents">0</b></span>
+          <button id="btnSaveAttendance" class="btn primary">Salvar presença/nota/comentário</button>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th>Presença</th>
+                <th>Nota</th>
+                <th>Comentário</th>
+              </tr>
+            </thead>
+            <tbody id="studentsTbody">
+              <tr>
+                <td colspan="4" class="muted">Selecione uma turma e clique em “Carregar alunos”.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Histórico da turma (últimas aulas)</h3>
+        <p class="muted">Vamos ativar em seguida (attendance por turma).</p>
+        <div class="muted">Em breve.</div>
+      </section>
+
+      <footer class="footer muted">© IMV • Professor • Versão inicial</footer>
+    </main>
+  </div>
+
+  <script type="module">
+    import { requireRole, bindLogoutButton } from "./js/router.js";
+
+    // Gate de segurança: só professor entra aqui.
+    const gate = await requireRole(["teacher"]);
+    bindLogoutButton();
+
+    if (!gate) {
+      // requireRole já mostrou erro e/ou redirecionou
+      // não executa nada do professor.
+    } else {
+      // Carrega o restante do painel
+      await import("./js/teacher.js");
+    }
+  </script>
 </body>
 </html>
