@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IMV • Debug</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b1220; color:#e8eefc; }
+    header { padding:16px; border-bottom:1px solid rgba(255,255,255,.08); }
+    h1 { margin:0 0 6px; font-size:18px; }
+    .muted { opacity:.8; font-size:13px; }
+    .wrap { padding:16px; display:grid; gap:12px; }
+    .card { background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:14px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    button { border:0; padding:10px 12px; border-radius:12px; background:#2d6cdf; color:#fff; font-weight:700; }
+    button.secondary { background:#334155; }
+    pre { white-space:pre-wrap; word-break:break-word; background: rgba(0,0,0,.35); padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+    .ok { color:#22c55e; font-weight:800; }
+    .bad { color:#ef4444; font-weight:800; }
+    .warn { color:#f59e0b; font-weight:800; }
+    .tag { padding:4px 8px; border-radius:999px; background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); font-size:12px; }
+    a { color:#60a5fa; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IMV Debug</h1>
+    <div class="muted">Esta página detecta 404, erros JS e status do Service Worker (celular-friendly).</div>
+  </header>
+
+  <div class="wrap">
+
+    <div class="card">
+      <div class="row">
+        <span class="tag" id="baseTag">Base: ...</span>
+        <span class="tag" id="uaTag">UA: ...</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnRun">Rodar diagnóstico</button>
+        <button class="secondary" id="btnUnregister">Remover Service Worker</button>
+        <button class="secondary" id="btnOpenTeacher">Abrir teacher.html</button>
+        <button class="secondary" id="btnOpenIndex">Abrir index.html</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div><b>Status de arquivos (fetch)</b></div>
+        <div class="muted">Se algo for 404 aqui, é a causa da tela branca.</div>
+      </div>
+      <pre id="filesOut">Ainda não rodou.</pre>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div><b>Erros capturados</b></div>
+        <div class="muted">JS fatal aparece aqui.</div>
+      </div>
+      <pre id="errOut">Nenhum erro ainda.</pre>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div><b>Teste de imports (modules)</b></div>
+        <div class="muted">Se algum import quebrar, vai mostrar o motivo.</div>
+      </div>
+      <pre id="importOut">Ainda não testou.</pre>
+    </div>
+
+  </div>
+
+  <script>
+    const filesOut = document.getElementById("filesOut");
+    const errOut = document.getElementById("errOut");
+    const importOut = document.getElementById("importOut");
+
+    const base = new URL(".", location.href).href;
+    document.getElementById("baseTag").textContent = "Base: " + base;
+    document.getElementById("uaTag").textContent = "UA: " + navigator.userAgent;
+
+    const logErr = (msg) => {
+      const cur = errOut.textContent === "Nenhum erro ainda." ? "" : (errOut.textContent + "\n\n");
+      errOut.textContent = cur + msg;
+    };
+
+    window.addEventListener("error", (e) => {
+      logErr("❌ window.error:\n" + (e.message || "erro") + "\nArquivo: " + (e.filename || "?") + "\nLinha: " + (e.lineno || "?") + ":" + (e.colno || "?"));
+    });
+
+    window.addEventListener("unhandledrejection", (e) => {
+      logErr("❌ unhandledrejection:\n" + (e.reason?.message || e.reason || "promise rejeitada"));
+    });
+
+    async function check(url) {
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        return { url, ok: r.ok, status: r.status, ct: r.headers.get("content-type") || "" };
+      } catch (e) {
+        return { url, ok: false, status: "FETCH_FAIL", ct: "", error: String(e?.message || e) };
+      }
+    }
+
+    async function runFiles() {
+      const list = [
+        "./index.html",
+        "./teacher.html",
+        "./admin.html",
+        "./student.html",
+        "./css/styles.css",
+        "./js/firebase.js",
+        "./js/auth.js",
+        "./js/router.js",
+        "./js/teacher.js",
+        "./js/admin.js",
+        "./js/student.js",
+        "./manifest.webmanifest",
+        "./assets/logo-imv.png",
+        "./assets/icon-192.png",
+        "./assets/icon-512.png"
+      ];
+
+      const results = [];
+      for (const p of list) results.push(await check(p));
+
+      const lines = results.map(x => {
+        const mark = x.ok ? "✅ OK" : "❌ FAIL";
+        return `${mark}  ${x.status}  ${x.url}  ${x.ct}${x.error ? "  ("+x.error+")" : ""}`;
+      });
+
+      filesOut.textContent = lines.join("\n");
+    }
+
+    async function unregisterSW() {
+      try {
+        if (!("serviceWorker" in navigator)) {
+          logErr("⚠️ Este navegador não tem Service Worker.");
+          return;
+        }
+        const regs = await navigator.serviceWorker.getRegistrations();
+        if (!regs.length) {
+          logErr("✅ Nenhum Service Worker registrado.");
+          return;
+        }
+        for (const r of regs) await r.unregister();
+        logErr("✅ Service Worker removido. Feche a aba e abra o site novamente.");
+      } catch (e) {
+        logErr("❌ Falha ao remover SW: " + (e?.message || e));
+      }
+    }
+
+    async function testImports() {
+      importOut.textContent = "Rodando imports...";
+      try {
+        // tenta importar os módulos principais (se 404/erro sintaxe, cai no catch)
+        await import("./js/firebase.js");
+        await import("./js/auth.js");
+        await import("./js/router.js");
+
+        // teacher.js pode depender do router/auth; vamos tentar também
+        await import("./js/teacher.js");
+
+        importOut.textContent = "✅ Imports OK (firebase/auth/router/teacher)";
+      } catch (e) {
+        importOut.textContent = "❌ Import falhou:\n" + (e?.message || e) + "\n\nDica: isso geralmente é arquivo faltando (404) ou erro de sintaxe dentro do JS.";
+        logErr("❌ Import falhou: " + (e?.message || e));
+      }
+    }
+
+    document.getElementById("btnRun").addEventListener("click", async () => {
+      errOut.textContent = "Nenhum erro ainda.";
+      await runFiles();
+      await testImports();
+    });
+
+    document.getElementById("btnUnregister").addEventListener("click", unregisterSW);
+    document.getElementById("btnOpenTeacher").addEventListener("click", () => location.href = "./teacher.html?v=debug");
+    document.getElementById("btnOpenIndex").addEventListener("click", () => location.href = "./index.html?v=debug");
+  </script>
+</body>
+</html>
