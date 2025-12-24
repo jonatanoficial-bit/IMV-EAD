@@ -1,5 +1,8 @@
-// sw.js — cache simples para PWA (leve e estável) + correção forte de atualização
-const CACHE_NAME = "imv-ea-v6"; // ✅ aumente sempre que mexer no app para quebrar cache
+// sw.js — cache simples para PWA (leve e estável)
+// IMPORTANTE: troque o CACHE_NAME sempre que atualizar arquivos JS/HTML
+// para forçar atualização no celular e evitar "JS antigo" quebrar login/turmas.
+
+const CACHE_NAME = "imv-ead-v10"; // <<< MUDE O NÚMERO SE PRECISAR NO FUTURO
 
 const ASSETS = [
   "./",
@@ -7,70 +10,73 @@ const ASSETS = [
   "./admin.html",
   "./teacher.html",
   "./student.html",
+
   "./css/styles.css",
+
   "./js/firebase.js",
   "./js/auth.js",
   "./js/router.js",
   "./js/admin.js",
   "./js/teacher.js",
   "./js/student.js",
+
   "./manifest.webmanifest",
+
   "./assets/logo-imv.png",
   "./assets/icon-192.png",
   "./assets/icon-512.png"
 ];
 
+// Instalando: baixa tudo e ativa novo cache
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      try {
+        await cache.addAll(ASSETS);
+      } catch (e) {
+        // Se algum arquivo falhar, ainda instala. Evita quebrar PWA por 1 arquivo
+        // (ex.: caminho errado momentâneo).
+        console.warn("Cache addAll falhou em algum asset:", e);
+      }
+    })
+  );
   self.skipWaiting();
 });
 
+// Ativando: remove caches antigos
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)))
+      Promise.all(
+        keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))
+      )
     )
   );
   self.clients.claim();
 });
 
+// Fetch: cache-first (rápido) com fallback para rede
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+  // Só GET
+  if (event.request.method !== "GET") return;
 
-  // Só tratar requisições do próprio site
-  if (url.origin !== self.location.origin) return;
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
 
-  // ✅ Arquivos críticos sempre "network-first" para nunca ficar preso em versão antiga
-  const criticalPaths = [
-    "/IMV-EAD/index.html",
-    "/IMV-EAD/admin.html",
-    "/IMV-EAD/teacher.html",
-    "/IMV-EAD/student.html",
-    "/IMV-EAD/js/admin.js",
-    "/IMV-EAD/js/firebase.js",
-    "/IMV-EAD/js/auth.js",
-    "/IMV-EAD/js/router.js",
-    "/IMV-EAD/js/teacher.js",
-    "/IMV-EAD/js/student.js"
-  ];
-
-  const isCritical = criticalPaths.some((p) => url.pathname.endsWith(p.replace("/IMV-EAD", "")) || url.pathname === p);
-
-  if (isCritical) {
-    event.respondWith(
-      fetch(event.request)
+      return fetch(event.request)
         .then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          // Atualiza cache em background para requisições do mesmo domínio
+          const url = new URL(event.request.url);
+          const isSameOrigin = url.origin === self.location.origin;
+
+          if (isSameOrigin) {
+            const respClone = resp.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, respClone));
+          }
           return resp;
         })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Resto: cache-first
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+        .catch(() => cached); // fallback
+    })
   );
 });
