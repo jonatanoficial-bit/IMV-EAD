@@ -3,102 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Painel Professor • IMV</title>
+  <title>IMV • Professor</title>
   <link rel="stylesheet" href="./css/styles.css" />
   <meta name="theme-color" content="#0b1220" />
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <img src="./assets/logo-imv.png" alt="IMV" class="logo" />
-        <div class="brandText">
-          <div class="title">Painel Professor • IMV</div>
-          <div class="subtitle"><span id="whoName">...</span> • (<span id="whoRole">...</span>)</div>
-        </div>
+  <header class="topbar">
+    <div class="topLeft">
+      <img src="./assets/logo-imv.png" class="logoSm" alt="IMV">
+      <div>
+        <div class="topTitle">Painel do Professor</div>
+        <div class="muted tiny" id="who">Carregando…</div>
       </div>
+    </div>
+    <button class="btn danger" id="btnLogout">Sair</button>
+  </header>
 
-      <div class="topbarActions">
-        <span class="pill" id="pillRole">teacher</span>
-        <button class="btn danger" id="btnLogout">Sair</button>
-      </div>
-    </header>
-
-    <main class="container">
-      <div id="banner" class="banner" style="display:none;"></div>
-
-      <section class="card">
-        <h2>Minha rotina</h2>
-        <p class="muted">Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.</p>
-
-        <div class="row">
-          <label class="label">Turma</label>
-          <select id="classSelect" class="input">
-            <option value="">Carregando turmas...</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <label class="label">Data</label>
-          <input id="dateInput" class="input" type="date" />
-        </div>
-
-        <div class="row">
-          <button id="btnLoadStudents" class="btn">Carregar alunos</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h3>Alunos matriculados</h3>
-        <p class="muted">Lista vem de enrollments filtrando pela turma selecionada.</p>
-
-        <div class="row">
-          <span class="pill">Total: <b id="totalStudents">0</b></span>
-          <button id="btnSaveAttendance" class="btn primary">Salvar presença/nota/comentário</button>
-        </div>
-
-        <div class="tableWrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Aluno</th>
-                <th>Presença</th>
-                <th>Nota</th>
-                <th>Comentário</th>
-              </tr>
-            </thead>
-            <tbody id="studentsTbody">
-              <tr>
-                <td colspan="4" class="muted">Selecione uma turma e clique em “Carregar alunos”.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h3>Histórico da turma (últimas aulas)</h3>
-        <p class="muted">Vamos ativar em seguida (attendance por turma).</p>
-        <div class="muted">Em breve.</div>
-      </section>
-
-      <footer class="footer muted">© IMV • Professor • Versão inicial</footer>
-    </main>
-  </div>
+  <main class="page">
+    <section class="card">
+      <h2>Professor</h2>
+      <p class="muted">Se esta tela abre, o login e o role estão OK.</p>
+      <div class="msg warn" id="warn" style="display:none;"></div>
+    </section>
+  </main>
 
   <script type="module">
-    import { requireRole, bindLogoutButton } from "./js/router.js";
+    import { guardPage } from "./js/router.js";
+    import { signOut } from "./js/auth.js";
 
-    // Gate de segurança: só professor entra aqui.
-    const gate = await requireRole(["teacher"]);
-    bindLogoutButton();
+    const gate = await guardPage(["teacher"]);
+    const who = document.getElementById("who");
+    const warn = document.getElementById("warn");
 
-    if (!gate) {
-      // requireRole já mostrou erro e/ou redirecionou
-      // não executa nada do professor.
+    document.getElementById("btnLogout").addEventListener("click", async () => {
+      await signOut();
+      window.location.replace("./index.html");
+    });
+
+    if (gate) {
+      who.textContent = (gate.profile?.name || gate.user.email) + " • (teacher)";
+      // Aqui você pode importar o teacher.js real depois que estiver estável:
+      // await import("./js/teacher.js");
     } else {
-      // Carrega o restante do painel
-      await import("./js/teacher.js");
+      // guardPage já redirecionou para index se precisar
+      warn.style.display = "block";
+      warn.textContent = "Se você está vendo isso, aguarde. O sistema está validando seu acesso…";
     }
   </script>
 </body>
