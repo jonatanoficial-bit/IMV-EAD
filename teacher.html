@@ -1,54 +1,62 @@
 <!doctype html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1b2b" />
   <title>IMV • Professor</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./css/styles.css" />
-  <meta name="theme-color" content="#0b1220" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topLeft">
-      <img src="./assets/logo-imv.png" class="logoSm" alt="IMV">
-      <div>
-        <div class="topTitle">Painel do Professor</div>
-        <div class="muted tiny" id="who">Carregando…</div>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <img src="./assets/logo-imv.png" alt="IMV" />
+        <div class="t">
+          <div class="h">Painel Professor • IMV</div>
+          <div class="s"><span id="meName">...</span> • (teacher)</div>
+        </div>
+      </div>
+      <button id="btnLogout" class="secondary">Sair</button>
+    </div>
+
+    <div id="fatal" class="msg err" style="display:none;"></div>
+
+    <div class="card">
+      <h2 style="margin:0 0 8px;font-size:18px;">Minha rotina</h2>
+      <div class="muted">Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.</div>
+
+      <div class="formRow">
+        <label>Turma</label>
+        <select id="classSelect" class="input"></select>
+        <div id="classStatus" class="muted"></div>
+      </div>
+
+      <div class="formRow">
+        <label>Data</label>
+        <input id="dateInput" class="input" type="date" />
+      </div>
+
+      <div id="msg" class="msg ok"></div>
+
+      <hr class="sep"/>
+
+      <h2 style="margin:0 0 8px;font-size:18px;">Alunos matriculados</h2>
+      <div id="studentsList" class="muted">Selecione uma turma.</div>
+
+      <div class="actions" style="margin-top:14px;">
+        <button id="btnSave">Salvar presença/nota/comentário</button>
       </div>
     </div>
-    <button class="btn danger" id="btnLogout">Sair</button>
-  </header>
 
-  <main class="page">
-    <section class="card">
-      <h2>Professor</h2>
-      <p class="muted">Se esta tela abre, o login e o role estão OK.</p>
-      <div class="msg warn" id="warn" style="display:none;"></div>
-    </section>
-  </main>
+    <div class="footer">© IMV • Professor • Core estável</div>
+  </div>
 
   <script type="module">
-    import { guardPage } from "./js/router.js";
-    import { signOut } from "./js/auth.js";
-
-    const gate = await guardPage(["teacher"]);
-    const who = document.getElementById("who");
-    const warn = document.getElementById("warn");
-
-    document.getElementById("btnLogout").addEventListener("click", async () => {
-      await signOut();
-      window.location.replace("./index.html");
-    });
-
-    if (gate) {
-      who.textContent = (gate.profile?.name || gate.user.email) + " • (teacher)";
-      // Aqui você pode importar o teacher.js real depois que estiver estável:
-      // await import("./js/teacher.js");
-    } else {
-      // guardPage já redirecionou para index se precisar
-      warn.style.display = "block";
-      warn.textContent = "Se você está vendo isso, aguarde. O sistema está validando seu acesso…";
-    }
+    import { startRouter } from "./js/router.js";
+    startRouter();
   </script>
+  <script type="module" src="./js/teacher.js"></script>
 </body>
 </html>
