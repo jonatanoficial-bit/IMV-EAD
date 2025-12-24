@@ -1,834 +1,350 @@
 // js/admin.js
-// Admin: Cadastros + Cursos + Turmas + Matrículas + Avisos
-// Correções importantes:
-// - remove where+orderBy que exigia index (ordenamos no JS)
-// - evita query duplicada com 2 where (exigia index) usando filtro local
-// - mensagens de erro mais claras ao cadastrar usuários
-
-import { auth, db } from "./firebase.js";
+import { auth, db, firebaseConfig } from "./firebase.js";
+import { logout } from "./auth.js";
 
 import {
-  onAuthStateChanged,
-  signOut,
-  createUserWithEmailAndPassword,
-  getAuth
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
   collection,
-  query,
-  orderBy,
-  getDocs,
-  serverTimestamp,
+  doc,
+  setDoc,
+  getDoc,
   addDoc,
-  where
+  getDocs,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-const $ = (id) => document.getElementById(id);
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 
-// ========= Secondary Auth (criar usuários sem deslogar o admin) =========
-const firebaseConfig = {
-  apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
-  authDomain: "imvapp-aef54.firebaseapp.com",
-  projectId: "imvapp-aef54",
-  storageBucket: "imvapp-aef54.firebasestorage.app",
-  messagingSenderId: "439661516200",
-  appId: "1:439661516200:web:2d3ede20edbb9aa6d6f99d",
-  measurementId: "G-2LEK7QDZ48"
-};
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signOut as signOutAuth
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
-let secondaryApp = null;
-let secondaryAuth = null;
+function qs(sel) { return document.querySelector(sel); }
+function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
 
-function ensureSecondaryAuth() {
-  if (!secondaryApp) {
-    secondaryApp = initializeApp(firebaseConfig, "secondary");
-    secondaryAuth = getAuth(secondaryApp);
-  }
-  return secondaryAuth;
-}
-
-// ========= Util =========
-function showBox(el, text, isError = false) {
-  el.style.display = "block";
-  el.textContent = text;
-  el.style.borderColor = isError ? "rgba(255,92,122,.45)" : "rgba(72,213,151,.35)";
-  el.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
-}
-
-function hideBox(el) {
-  el.style.display = "none";
-  el.textContent = "";
-}
-
-function generateRandomPassword(length = 10) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#!?";
+function randomPass(len = 10) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
   let out = "";
-  for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
 
-function prettyAuthError(e) {
-  const msg = (e?.message || String(e || "")).toLowerCase();
-
-  if (msg.includes("email-already-in-use")) return "Este email já está em uso (já existe um usuário com este email).";
-  if (msg.includes("invalid-email")) return "Email inválido.";
-  if (msg.includes("weak-password")) return "Senha fraca. (Aqui é randômica, mas pode ter falhado. Tente de novo.)";
-  if (msg.includes("operation-not-allowed")) return "Email/Senha não está habilitado no Firebase Authentication (Console → Authentication → Sign-in method).";
-  if (msg.includes("network")) return "Falha de rede. Tente novamente em uma conexão melhor.";
-  if (msg.includes("requires an index")) return "Firestore pediu um índice. (Esta versão do admin.js já evita isso; se persistir, me mande print do erro.)";
-
-  return (e?.message || String(e));
-}
-
-async function logout() {
-  await signOut(auth);
-  window.location.href = "./index.html";
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-function escapeAttr(str) {
-  return escapeHtml(str).replaceAll("`", "&#096;");
-}
-function formatMoney(n) {
-  try { return Number(n || 0).toFixed(2).replace(".", ","); }
-  catch { return "0,00"; }
-}
-function safeNameSort(a, b) {
-  const an = (a?.name || a?.email || "").toString().toLowerCase();
-  const bn = (b?.name || b?.email || "").toString().toLowerCase();
-  return an.localeCompare(bn);
-}
-
-// ========= Tabs =========
-function setupTabs() {
-  const btns = Array.from(document.querySelectorAll(".tabBtn"));
-  const panels = Array.from(document.querySelectorAll(".tabPanel"));
-
-  function openTab(tabId) {
-    btns.forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
-    panels.forEach(p => p.classList.toggle("active", p.id === tabId));
-
-    // Sempre que abrir Matrículas, atualizar selects (pra não ficar “parado”)
-    if (tabId === "tab-enroll") {
-      Promise.allSettled([loadStudentsForSelect(), loadClassesForSelect(), loadEnrollments()]);
-    }
-
-    // Sempre que abrir Turmas, atualizar selects
-    if (tabId === "tab-classes") {
-      Promise.allSettled([loadCoursesForSelect(), loadTeachersForSelect(), loadClasses()]);
-    }
-  }
-
-  btns.forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
-}
-
-// ========= Auth + Role =========
-async function getUserProfile(uid) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
+async function ensureRole(roleNeeded = "admin") {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("Não autenticado.");
+  const snap = await getDoc(doc(db, "users", uid));
+  if (!snap.exists()) throw new Error("Perfil não encontrado em users/{uid}.");
+  const role = snap.data()?.role;
+  if (role !== roleNeeded) throw new Error("Sem permissão (role).");
   return snap.data();
 }
 
-async function requireAdmin(user) {
-  const profile = await getUserProfile(user.uid);
-  if (!profile || String(profile.role || "").toLowerCase() !== "admin") {
-    alert("Acesso negado: apenas admin.");
-    await logout();
-    return null;
-  }
-  return profile;
+async function createUserAccount(email, password) {
+  // ✅ Cria usuário no Auth sem derrubar a sessão do admin:
+  // usa um app secundário com auth separado
+  const secondaryApp = initializeApp(firebaseConfig, "secondary-" + Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email.trim(), password);
+  await signOutAuth(secondaryAuth);
+  return cred.user;
 }
 
-// ========= USERS LIST =========
-async function loadUsers() {
-  const tbody = $("usersTbody");
-  tbody.innerHTML = `<tr><td colspan="5" class="muted">Carregando…</td></tr>`;
-
-  const qy = query(collection(db, "users"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(qy);
-
-  $("usersCount").textContent = String(snap.size);
-
-  if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="5" class="muted">Nenhum usuário encontrado.</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
-    const uid = docSnap.id;
-    const name = d.name || "(sem nome)";
-    const email = d.email || "(sem email)";
-    const role = d.role || "(sem role)";
-    const active = d.active === true;
-
-    rows.push(`
-      <tr>
-        <td><b>${escapeHtml(name)}</b><br><span class="muted">${escapeHtml(uid)}</span></td>
-        <td>${escapeHtml(email)}</td>
-        <td>${escapeHtml(role)}</td>
-        <td>${active ? "✅" : "⛔"}</td>
-        <td>
-          <div class="actionsRow">
-            <button class="btn inline" data-action="toggleActive" data-uid="${escapeAttr(uid)}">
-              ${active ? "Desativar" : "Ativar"}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `);
-  });
-
-  tbody.innerHTML = rows.join("");
-
-  tbody.querySelectorAll("[data-action='toggleActive']").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const uid = btn.getAttribute("data-uid");
-      await toggleUserActive(uid);
-      await loadUsers();
-      await Promise.allSettled([loadTeachersForSelect(), loadStudentsForSelect()]);
-    });
-  });
-}
-
-async function toggleUserActive(uid) {
+async function createProfile({ uid, email, name, role }) {
   const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const cur = snap.data();
-  const next = !(cur.active === true);
-  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
-}
-
-// ========= Create Student / Teacher =========
-async function createUser(role, name, email) {
-  if (!name || !email) throw new Error("Preencha nome e email.");
-
-  const pass = generateRandomPassword(10);
-  const secAuth = ensureSecondaryAuth();
-
-  const cred = await createUserWithEmailAndPassword(secAuth, email, pass);
-
-  await setDoc(doc(db, "users", cred.user.uid), {
-    name,
-    email,
+  await setDoc(ref, {
+    email: email.trim(),
+    name: name?.trim() || "",
     role,
     active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
-
-  return { uid: cred.user.uid, email, password: pass };
 }
 
-// ========= Courses =========
-async function createCourse() {
-  const out = $("outCourse");
-  hideBox(out);
+async function listCounts() {
+  const usersSnap = await getDocs(collection(db, "users"));
+  const coursesSnap = await getDocs(collection(db, "courses"));
+  const classesSnap = await getDocs(collection(db, "classes"));
+  const enrollSnap = await getDocs(collection(db, "enrollments"));
 
-  const name = $("cName").value.trim();
-  const category = $("cCategory").value.trim();
-  const modality = $("cModality").value.trim();
-  const priceRaw = $("cPrice").value.trim().replace(",", ".");
-  const price = priceRaw ? Number(priceRaw) : 0;
-
-  if (!name) { showBox(out, "❌ Informe o nome do curso.", true); return; }
-  if (priceRaw && Number.isNaN(price)) { showBox(out, "❌ Preço inválido.", true); return; }
-
-  const payload = {
-    name,
-    category: category || "",
-    modality: modality || "",
-    price: price || 0,
-    active: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-
-  const ref = await addDoc(collection(db, "courses"), payload);
-  showBox(out, `✅ Curso salvo!\nID: ${ref.id}\nNome: ${name}`);
-
-  $("cName").value = "";
-  $("cCategory").value = "";
-  $("cModality").value = "";
-  $("cPrice").value = "";
-
-  await Promise.allSettled([loadCourses(), loadCoursesForSelect()]);
+  qs("#countUsers").textContent = usersSnap.size.toString();
+  qs("#countCourses").textContent = coursesSnap.size.toString();
+  qs("#countClasses").textContent = classesSnap.size.toString();
+  qs("#countEnroll").textContent = enrollSnap.size.toString();
 }
 
-async function loadCourses() {
-  const tbody = $("coursesTbody");
-  tbody.innerHTML = `<tr><td colspan="5" class="muted">Carregando…</td></tr>`;
+async function renderCourses() {
+  const wrap = qs("#coursesList");
+  wrap.innerHTML = "Carregando...";
+  const qy = query(collection(db, "courses"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(qy);
+  if (snap.empty) { wrap.innerHTML = "<div class='muted'>Nenhum curso ainda.</div>"; return; }
+
+  wrap.innerHTML = snap.docs.map(d => {
+    const c = d.data();
+    return `
+      <div class="item">
+        <div class="row">
+          <div>
+            <div class="title">${escapeHtml(c.title || "Sem título")}</div>
+            <div class="muted">${escapeHtml(c.description || "")}</div>
+          </div>
+          <div class="pill">${escapeHtml(c.active ? "ativo" : "inativo")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function renderClasses() {
+  const wrap = qs("#classesList");
+  wrap.innerHTML = "Carregando...";
+  const qy = query(collection(db, "classes"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(qy);
+  if (snap.empty) { wrap.innerHTML = "<div class='muted'>Nenhuma turma ainda.</div>"; return; }
+
+  wrap.innerHTML = snap.docs.map(d => {
+    const c = d.data();
+    return `
+      <div class="item">
+        <div class="row">
+          <div>
+            <div class="title">${escapeHtml(c.name || "Turma")}</div>
+            <div class="muted">teacherId: ${escapeHtml(c.teacherId || "-")} • courseId: ${escapeHtml(c.courseId || "-")}</div>
+          </div>
+          <div class="pill">${escapeHtml(c.active ? "ativa" : "inativa")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function renderEnrollments() {
+  const wrap = qs("#enrollList");
+  wrap.innerHTML = "Carregando...";
+  const qy = query(collection(db, "enrollments"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(qy);
+  if (snap.empty) { wrap.innerHTML = "<div class='muted'>Nenhuma matrícula ainda.</div>"; return; }
+
+  wrap.innerHTML = snap.docs.map(d => {
+    const e = d.data();
+    return `
+      <div class="item">
+        <div class="row">
+          <div>
+            <div class="title">Aluno: ${escapeHtml(e.studentId || "-")}</div>
+            <div class="muted">Turma: ${escapeHtml(e.classId || "-")} • status: ${escapeHtml(e.status || "active")}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function fillTeachersSelect() {
+  const sel = qs("#classTeacher");
+  sel.innerHTML = "<option value=''>Selecione...</option>";
+
+  const qy = query(collection(db, "users"), where("role", "==", "teacher"));
+  const snap = await getDocs(qy);
+
+  snap.forEach(docu => {
+    const u = docu.data();
+    const opt = document.createElement("option");
+    opt.value = docu.id;
+    opt.textContent = (u.name || u.email || docu.id);
+    sel.appendChild(opt);
+  });
+}
+
+async function fillCoursesSelect() {
+  const sel = qs("#classCourse");
+  sel.innerHTML = "<option value=''>Selecione...</option>";
 
   const qy = query(collection(db, "courses"), orderBy("createdAt", "desc"));
   const snap = await getDocs(qy);
 
-  $("coursesCount").textContent = String(snap.size);
-
-  if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="5" class="muted">Nenhum curso cadastrado.</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
-    const id = docSnap.id;
-    const active = d.active === true;
-
-    rows.push(`
-      <tr>
-        <td><b>${escapeHtml(d.name || "(sem nome)")}</b><br><span class="muted">${escapeHtml(d.category || "")}</span></td>
-        <td>${escapeHtml(d.modality || "")}</td>
-        <td>R$ ${formatMoney(d.price || 0)}</td>
-        <td>${active ? "✅" : "⛔"}</td>
-        <td>
-          <div class="actionsRow">
-            <button class="btn inline" data-action="toggleCourse" data-id="${escapeAttr(id)}">
-              ${active ? "Desativar" : "Ativar"}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `);
-  });
-
-  tbody.innerHTML = rows.join("");
-
-  tbody.querySelectorAll("[data-action='toggleCourse']").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-id");
-      await toggleCourseActive(id);
-      await Promise.allSettled([loadCourses(), loadCoursesForSelect(), loadClassesForSelect()]);
-    });
+  snap.forEach(docu => {
+    const c = docu.data();
+    const opt = document.createElement("option");
+    opt.value = docu.id;
+    opt.textContent = (c.title || docu.id);
+    sel.appendChild(opt);
   });
 }
 
-async function toggleCourseActive(courseId) {
-  const ref = doc(db, "courses", courseId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const cur = snap.data();
-  const next = !(cur.active === true);
-  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
+function showMsg(el, ok, text) {
+  el.className = ok ? "msg ok" : "msg err";
+  el.textContent = text;
+  el.style.display = "block";
 }
 
-// ========= Select helpers (SEM ORDERBY no Firestore -> sem índice) =========
-async function loadCoursesForSelect() {
-  const sel = $("clCourse");
-  if (!sel) return;
-
-  sel.innerHTML = `<option value="">Carregando cursos…</option>`;
-
-  const snap = await getDocs(collection(db, "courses"));
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    if (d.active !== true) return;
-    list.push({ id: s.id, name: d.name || s.id });
-  });
-
-  list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-
-  sel.innerHTML = list.length
-    ? `<option value="">Selecione um curso</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
-    : `<option value="">Nenhum curso ativo</option>`;
-}
-
-async function loadTeachersForSelect() {
-  const sel = $("clTeacher");
-  if (!sel) return;
-
-  sel.innerHTML = `<option value="">Carregando professores…</option>`;
-
-  // ✅ sem orderBy para não pedir índice
-  const qy = query(collection(db, "users"), where("role", "==", "teacher"));
-  const snap = await getDocs(qy);
-
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    if (d.active !== true) return;
-    list.push({ id: s.id, name: d.name || d.email || s.id, email: d.email || "" });
-  });
-  list.sort(safeNameSort);
-
-  sel.innerHTML = list.length
-    ? `<option value="">Selecione um professor</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
-    : `<option value="">Nenhum professor ativo</option>`;
-}
-
-async function loadStudentsForSelect() {
-  const sel = $("eStudent");
-  if (!sel) return;
-
-  sel.innerHTML = `<option value="">Carregando alunos…</option>`;
-
-  // ✅ sem orderBy para não pedir índice
-  const qy = query(collection(db, "users"), where("role", "==", "student"));
-  const snap = await getDocs(qy);
-
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    if (d.active !== true) return;
-    list.push({ id: s.id, name: d.name || d.email || s.id, email: d.email || "" });
-  });
-  list.sort(safeNameSort);
-
-  sel.innerHTML = list.length
-    ? `<option value="">Selecione um aluno</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.name)}</option>`).join("")
-    : `<option value="">Nenhum aluno ativo</option>`;
-}
-
-async function loadClassesForSelect() {
-  const sel = $("eClass");
-  if (!sel) return;
-
-  sel.innerHTML = `<option value="">Carregando turmas…</option>`;
-
-  const snap = await getDocs(collection(db, "classes"));
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    if (d.active !== true) return;
-    const label = `${d.title || s.id} • ${d.courseName || ""} • ${d.teacherName || ""}`.trim();
-    list.push({ id: s.id, label });
-  });
-
-  list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
-
-  sel.innerHTML = list.length
-    ? `<option value="">Selecione uma turma</option>` + list.map(x => `<option value="${escapeAttr(x.id)}">${escapeHtml(x.label)}</option>`).join("")
-    : `<option value="">Nenhuma turma ativa</option>`;
-}
-
-// ========= TURMAS =========
-async function createClass() {
-  const out = $("outClass");
-  hideBox(out);
-
-  const title = $("clTitle").value.trim();
-  const courseId = $("clCourse").value;
-  const teacherId = $("clTeacher").value;
-  const modality = $("clModality").value.trim();
-  const schedule = $("clSchedule").value.trim();
-
-  if (!title) { showBox(out, "❌ Informe o nome da turma.", true); return; }
-  if (!courseId) { showBox(out, "❌ Selecione um curso.", true); return; }
-  if (!teacherId) { showBox(out, "❌ Selecione um professor.", true); return; }
-
-  const courseSnap = await getDoc(doc(db, "courses", courseId));
-  if (!courseSnap.exists()) { showBox(out, "❌ Curso não encontrado.", true); return; }
-  const course = courseSnap.data() || {};
-  if (course.active !== true) { showBox(out, "❌ Curso desativado.", true); return; }
-
-  const teacherSnap = await getDoc(doc(db, "users", teacherId));
-  if (!teacherSnap.exists()) { showBox(out, "❌ Professor não encontrado.", true); return; }
-  const teacher = teacherSnap.data() || {};
-  if (teacher.active !== true) { showBox(out, "❌ Professor desativado.", true); return; }
-
-  const payload = {
-    title,
-    courseId,
-    courseName: course.name || "",
-    teacherId,
-    teacherName: teacher.name || teacher.email || "",
-    modality: modality || (course.modality || ""),
-    schedule: schedule || "",
-    active: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-
-  const ref = await addDoc(collection(db, "classes"), payload);
-
-  showBox(out, `✅ Turma salva!\nID: ${ref.id}\nTurma: ${title}`);
-
-  $("clTitle").value = "";
-  $("clModality").value = "";
-  $("clSchedule").value = "";
-  $("clCourse").value = "";
-  $("clTeacher").value = "";
-
-  await Promise.allSettled([loadClasses(), loadClassesForSelect()]);
-}
-
-async function loadClasses() {
-  const tbody = $("classesTbody");
-  if (!tbody) return;
-
-  tbody.innerHTML = `<tr><td colspan="6" class="muted">Carregando…</td></tr>`;
-
-  const qy = query(collection(db, "classes"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(qy);
-
-  $("classesCount").textContent = String(snap.size);
-
-  if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted">Nenhuma turma cadastrada.</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
-    const id = docSnap.id;
-    const active = d.active === true;
-
-    rows.push(`
-      <tr>
-        <td><b>${escapeHtml(d.title || "(sem título)")}</b><br><span class="muted">${escapeHtml(id)}</span></td>
-        <td>${escapeHtml(d.courseName || d.courseId || "")}</td>
-        <td>${escapeHtml(d.teacherName || d.teacherId || "")}</td>
-        <td>${escapeHtml(d.schedule || "")}<br><span class="muted">${escapeHtml(d.modality || "")}</span></td>
-        <td>${active ? "✅" : "⛔"}</td>
-        <td>
-          <div class="actionsRow">
-            <button class="btn inline" data-action="toggleClass" data-id="${escapeAttr(id)}">
-              ${active ? "Desativar" : "Ativar"}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `);
-  });
-
-  tbody.innerHTML = rows.join("");
-
-  tbody.querySelectorAll("[data-action='toggleClass']").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-id");
-      await toggleClassActive(id);
-      await Promise.allSettled([loadClasses(), loadClassesForSelect()]);
-    });
-  });
-}
-
-async function toggleClassActive(classId) {
-  const ref = doc(db, "classes", classId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const cur = snap.data();
-  const next = !(cur.active === true);
-  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
-}
-
-// ========= MATRÍCULAS =========
-async function createEnrollment() {
-  const out = $("outEnroll");
-  hideBox(out);
-
-  const studentId = $("eStudent").value;
-  const classId = $("eClass").value;
-  const status = ($("eStatus").value || "ativa").toLowerCase();
-  const startDate = ($("eStart").value || ""); // "YYYY-MM-DD"
-
-  if (!studentId) { showBox(out, "❌ Selecione um aluno.", true); return; }
-  if (!classId) { showBox(out, "❌ Selecione uma turma.", true); return; }
-
-  const stSnap = await getDoc(doc(db, "users", studentId));
-  if (!stSnap.exists()) { showBox(out, "❌ Aluno não encontrado.", true); return; }
-  const st = stSnap.data() || {};
-  if (st.active !== true) { showBox(out, "❌ Aluno desativado.", true); return; }
-
-  const clSnap = await getDoc(doc(db, "classes", classId));
-  if (!clSnap.exists()) { showBox(out, "❌ Turma não encontrada.", true); return; }
-  const cl = clSnap.data() || {};
-  if (cl.active !== true) { showBox(out, "❌ Turma desativada.", true); return; }
-
-  // ✅ Evita matrícula duplicada SEM precisar de índice composto:
-  // Busca todas matrículas do aluno e filtra por classId no JS.
-  const onlyStudentQ = query(collection(db, "enrollments"), where("studentId", "==", studentId));
-  const onlyStudentSnap = await getDocs(onlyStudentQ);
-  let already = false;
-  onlyStudentSnap.forEach(s => {
-    const d = s.data() || {};
-    if (d.classId === classId) already = true;
-  });
-  if (already) {
-    showBox(out, "❌ Este aluno já está matriculado nesta turma.", true);
-    return;
-  }
-
-  const payload = {
-    studentId,
-    studentName: st.name || st.email || "",
-    studentEmail: st.email || "",
-    classId,
-    classTitle: cl.title || "",
-    courseId: cl.courseId || "",
-    courseName: cl.courseName || "",
-    teacherId: cl.teacherId || "",
-    teacherName: cl.teacherName || "",
-    status,
-    startDate,
-    active: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-
-  const ref = await addDoc(collection(db, "enrollments"), payload);
-
-  showBox(out, `✅ Matrícula salva!\nID: ${ref.id}\nAluno: ${payload.studentName}\nTurma: ${payload.classTitle}`);
-
-  $("eStudent").value = "";
-  $("eClass").value = "";
-  $("eStatus").value = "ativa";
-  $("eStart").value = "";
-
-  await loadEnrollments();
-}
-
-async function loadEnrollments() {
-  const tbody = $("enrollTbody");
-  if (!tbody) return;
-
-  tbody.innerHTML = `<tr><td colspan="6" class="muted">Carregando…</td></tr>`;
-
-  const qy = query(collection(db, "enrollments"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(qy);
-
-  $("enrollCount").textContent = String(snap.size);
-
-  if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted">Nenhuma matrícula cadastrada.</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
-    const id = docSnap.id;
-    const active = d.active === true;
-
-    rows.push(`
-      <tr>
-        <td><b>${escapeHtml(d.studentName || d.studentEmail || "(aluno)")}</b><br><span class="muted">${escapeHtml(d.studentEmail || "")}</span></td>
-        <td><b>${escapeHtml(d.classTitle || "(turma)")}</b><br><span class="muted">${escapeHtml(d.courseName || "")}</span></td>
-        <td>${escapeHtml(d.status || "")}</td>
-        <td>${escapeHtml(d.startDate || "")}</td>
-        <td>${active ? "✅" : "⛔"}</td>
-        <td>
-          <div class="actionsRow">
-            <button class="btn inline" data-action="toggleEnroll" data-id="${escapeAttr(id)}">
-              ${active ? "Desativar" : "Ativar"}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `);
-  });
-
-  tbody.innerHTML = rows.join("");
-
-  tbody.querySelectorAll("[data-action='toggleEnroll']").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-id");
-      await toggleEnrollmentActive(id);
-      await loadEnrollments();
-    });
-  });
-}
-
-async function toggleEnrollmentActive(enrollmentId) {
-  const ref = doc(db, "enrollments", enrollmentId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const cur = snap.data();
-  const next = !(cur.active === true);
-  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
-}
-
-// ========= Notices =========
-async function createNotice() {
-  const out = $("outNotice");
-  hideBox(out);
-
-  const title = $("nTitle").value.trim();
-  const audience = $("nAudience").value.trim() || "all";
-  const body = $("nBody").value.trim();
-
-  if (!title) { showBox(out, "❌ Informe o título.", true); return; }
-  if (!body) { showBox(out, "❌ Informe a mensagem.", true); return; }
-
-  const payload = {
-    title,
-    audience,
-    body,
-    active: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-
-  const ref = await addDoc(collection(db, "notices"), payload);
-
-  showBox(out, `✅ Aviso publicado!\nID: ${ref.id}\nPara: ${audience}`);
-  $("nTitle").value = "";
-  $("nAudience").value = "";
-  $("nBody").value = "";
-
-  await loadNotices();
-}
-
-async function loadNotices() {
-  const tbody = $("noticesTbody");
-  tbody.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
-
-  const qy = query(collection(db, "notices"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(qy);
-
-  $("noticesCount").textContent = String(snap.size);
-
-  if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted">Nenhum aviso publicado.</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data() || {};
-    const id = docSnap.id;
-    const active = d.active === true;
-
-    rows.push(`
-      <tr>
-        <td><b>${escapeHtml(d.title || "(sem título)")}</b><br><span class="muted">${escapeHtml((d.body || "").slice(0, 90))}${(d.body || "").length > 90 ? "…" : ""}</span></td>
-        <td>${escapeHtml(d.audience || "all")}</td>
-        <td>${active ? "✅" : "⛔"}</td>
-        <td>
-          <div class="actionsRow">
-            <button class="btn inline" data-action="toggleNotice" data-id="${escapeAttr(id)}">
-              ${active ? "Desativar" : "Ativar"}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `);
-  });
-
-  tbody.innerHTML = rows.join("");
-
-  tbody.querySelectorAll("[data-action='toggleNotice']").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-id");
-      await toggleNoticeActive(id);
-      await loadNotices();
-    });
-  });
-}
-
-async function toggleNoticeActive(noticeId) {
-  const ref = doc(db, "notices", noticeId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const cur = snap.data();
-  const next = !(cur.active === true);
-  await updateDoc(ref, { active: next, updatedAt: serverTimestamp() });
-}
-
-// ========= Boot =========
-setupTabs();
-
-$("btnLogout")?.addEventListener("click", logout);
-
-// Cadastros
-$("btnCreateStudent")?.addEventListener("click", async () => {
-  const out = $("outStudent");
-  hideBox(out);
+async function main() {
   try {
-    const name = $("sName").value.trim();
-    const email = $("sEmail").value.trim();
-    const created = await createUser("student", name, email);
-    showBox(out, `✅ Aluno criado!\nEmail: ${created.email}\nSenha: ${created.password}\nUID: ${created.uid}`);
-    $("sName").value = "";
-    $("sEmail").value = "";
-    await Promise.allSettled([loadUsers(), loadStudentsForSelect()]);
+    const me = await ensureRole("admin");
+    qs("#meName").textContent = me.name || me.email || "Admin";
+
+    qs("#btnLogout").addEventListener("click", async () => {
+      await logout();
+    });
+
+    // Criar aluno
+    qs("#formStudent").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const name = qs("#studentName").value.trim();
+      const email = qs("#studentEmail").value.trim();
+      const msg = qs("#msgStudent");
+
+      msg.style.display = "none";
+
+      try {
+        if (!email) throw new Error("E-mail do aluno é obrigatório.");
+        const password = randomPass(10);
+        const user = await createUserAccount(email, password);
+        await createProfile({ uid: user.uid, email, name, role: "student" });
+        showMsg(msg, true, `Aluno criado! Email: ${email} | Senha: ${password} | UID: ${user.uid}`);
+        qs("#studentName").value = "";
+        qs("#studentEmail").value = "";
+        await listCounts();
+      } catch (e) {
+        showMsg(msg, false, e?.message || "Erro ao criar aluno.");
+      }
+    });
+
+    // Criar professor
+    qs("#formTeacher").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const name = qs("#teacherName").value.trim();
+      const email = qs("#teacherEmail").value.trim();
+      const msg = qs("#msgTeacher");
+
+      msg.style.display = "none";
+
+      try {
+        if (!email) throw new Error("E-mail do professor é obrigatório.");
+        const password = randomPass(10);
+        const user = await createUserAccount(email, password);
+        await createProfile({ uid: user.uid, email, name, role: "teacher" });
+        showMsg(msg, true, `Professor criado! Email: ${email} | Senha: ${password} | UID: ${user.uid}`);
+        qs("#teacherName").value = "";
+        qs("#teacherEmail").value = "";
+        await listCounts();
+        await fillTeachersSelect();
+      } catch (e) {
+        showMsg(msg, false, e?.message || "Erro ao criar professor.");
+      }
+    });
+
+    // Criar curso
+    qs("#formCourse").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const title = qs("#courseTitle").value.trim();
+      const description = qs("#courseDesc").value.trim();
+      const msg = qs("#msgCourse");
+
+      msg.style.display = "none";
+
+      try {
+        if (!title) throw new Error("Título do curso é obrigatório.");
+        await addDoc(collection(db, "courses"), {
+          title,
+          description,
+          active: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        showMsg(msg, true, "Curso criado!");
+        qs("#courseTitle").value = "";
+        qs("#courseDesc").value = "";
+        await listCounts();
+        await renderCourses();
+        await fillCoursesSelect();
+      } catch (e) {
+        showMsg(msg, false, e?.message || "Erro ao criar curso.");
+      }
+    });
+
+    // Criar turma
+    qs("#formClass").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const name = qs("#className").value.trim();
+      const teacherId = qs("#classTeacher").value;
+      const courseId = qs("#classCourse").value;
+      const msg = qs("#msgClass");
+
+      msg.style.display = "none";
+
+      try {
+        if (!name) throw new Error("Nome da turma é obrigatório.");
+        if (!teacherId) throw new Error("Selecione um professor.");
+        if (!courseId) throw new Error("Selecione um curso.");
+
+        await addDoc(collection(db, "classes"), {
+          name,
+          teacherId,
+          courseId,
+          active: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        showMsg(msg, true, "Turma criada!");
+        qs("#className").value = "";
+        await listCounts();
+        await renderClasses();
+      } catch (e) {
+        showMsg(msg, false, e?.message || "Erro ao criar turma.");
+      }
+    });
+
+    // Matricular
+    qs("#formEnroll").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const studentUid = qs("#enrollStudentUid").value.trim();
+      const classId = qs("#enrollClassId").value.trim();
+      const msg = qs("#msgEnroll");
+      msg.style.display = "none";
+
+      try {
+        if (!studentUid) throw new Error("UID do aluno é obrigatório.");
+        if (!classId) throw new Error("ID da turma é obrigatório.");
+
+        await addDoc(collection(db, "enrollments"), {
+          studentId: studentUid,
+          classId,
+          status: "active",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        showMsg(msg, true, "Matrícula criada!");
+        qs("#enrollStudentUid").value = "";
+        qs("#enrollClassId").value = "";
+        await listCounts();
+        await renderEnrollments();
+      } catch (e) {
+        showMsg(msg, false, e?.message || "Erro ao matricular.");
+      }
+    });
+
+    // Inicial
+    await listCounts();
+    await renderCourses();
+    await fillTeachersSelect();
+    await fillCoursesSelect();
+    await renderClasses();
+    await renderEnrollments();
   } catch (e) {
-    showBox(out, "❌ Erro ao criar aluno: " + prettyAuthError(e), true);
+    qs("#fatal").style.display = "block";
+    qs("#fatal").textContent = e?.message || "Erro no painel admin.";
   }
-});
+}
 
-$("btnCreateTeacher")?.addEventListener("click", async () => {
-  const out = $("outTeacher");
-  hideBox(out);
-  try {
-    const name = $("tName").value.trim();
-    const email = $("tEmail").value.trim();
-    const created = await createUser("teacher", name, email);
-    showBox(out, `✅ Professor criado!\nEmail: ${created.email}\nSenha: ${created.password}\nUID: ${created.uid}`);
-    $("tName").value = "";
-    $("tEmail").value = "";
-    await Promise.allSettled([loadUsers(), loadTeachersForSelect()]);
-  } catch (e) {
-    showBox(out, "❌ Erro ao criar professor: " + prettyAuthError(e), true);
-  }
-});
-
-// Botões recarregar
-$("btnReloadUsers")?.addEventListener("click", async () => {
-  await loadUsers();
-  await Promise.allSettled([loadTeachersForSelect(), loadStudentsForSelect()]);
-});
-$("btnReloadCourses")?.addEventListener("click", async () => {
-  await Promise.allSettled([loadCourses(), loadCoursesForSelect(), loadClassesForSelect()]);
-});
-$("btnReloadClasses")?.addEventListener("click", async () => {
-  await Promise.allSettled([loadClasses(), loadClassesForSelect()]);
-});
-$("btnReloadEnroll")?.addEventListener("click", async () => {
-  await Promise.allSettled([loadStudentsForSelect(), loadClassesForSelect(), loadEnrollments()]);
-});
-$("btnReloadNotices")?.addEventListener("click", loadNotices);
-
-// Ações
-$("btnCreateCourse")?.addEventListener("click", createCourse);
-$("btnCreateClass")?.addEventListener("click", createClass);
-$("btnCreateEnroll")?.addEventListener("click", createEnrollment);
-$("btnCreateNotice")?.addEventListener("click", createNotice);
-
-// Guard + Load
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "./index.html";
-    return;
-  }
-
-  const profile = await requireAdmin(user);
-  if (!profile) return;
-
-  $("who").textContent = `${profile.name || user.email} • (${profile.role || "admin"})`;
-
-  await Promise.allSettled([
-    loadUsers(),
-    loadCourses(),
-    loadClasses(),
-    loadNotices(),
-    loadCoursesForSelect(),
-    loadTeachersForSelect(),
-    loadStudentsForSelect(),
-    loadClassesForSelect(),
-    loadEnrollments()
-  ]);
-});
+main();
