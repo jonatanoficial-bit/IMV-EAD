@@ -1,10 +1,10 @@
 // js/firebase.js
+// ÚNICO local do Firebase config (não pode existir firebaseConfig em nenhum HTML)
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// ✅ Config REAL do seu projeto (imvapp-aef54)
-// (Foi a que você mostrou no print do Firebase)
 const firebaseConfig = {
   apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
   authDomain: "imvapp-aef54.firebaseapp.com",
@@ -18,3 +18,6 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// útil para debug (opcional)
+export const projectId = firebaseConfig.projectId;
