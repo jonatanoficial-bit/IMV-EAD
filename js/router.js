@@ -1,49 +1,69 @@
 // js/router.js
-import { getMyProfileOrThrow, signOut } from "./auth.js";
+import { auth } from "./firebase.js";
+import { onAuth, getMyProfile } from "./auth.js";
 
-export function roleHome(role) {
-  if (role === "admin") return "./admin.html";
-  if (role === "teacher") return "./teacher.html";
-  if (role === "student") return "./student.html";
-  return "./index.html";
+function here() {
+  const path = location.pathname.split("/").pop() || "index.html";
+  return path.toLowerCase();
 }
 
-// trava anti-loop: impede ficar redirecionando infinito
-function setRedirectLock() {
-  sessionStorage.setItem("IMV_REDIRECT_LOCK", String(Date.now()));
-}
-function hasRecentRedirectLock() {
-  const v = Number(sessionStorage.getItem("IMV_REDIRECT_LOCK") || "0");
-  return v && (Date.now() - v) < 2500; // 2.5s
-}
-function clearRedirectLock() {
-  sessionStorage.removeItem("IMV_REDIRECT_LOCK");
+function basePath() {
+  // GitHub Pages: /IMV-EAD/...
+  // Retorna o diretório atual para montar links relativos
+  const p = location.pathname;
+  return p.endsWith("/") ? p : p.substring(0, p.lastIndexOf("/") + 1);
 }
 
-export async function guardPage(allowedRoles = []) {
-  // Se já redirecionou agora há pouco, não redireciona de novo (evita piscar)
-  if (hasRecentRedirectLock()) {
-    return null;
-  }
+function go(file) {
+  const target = basePath() + file;
+  if (location.href.endsWith("/" + file) || location.href.endsWith(file)) return;
+  location.replace(target);
+}
 
-  try {
-    const { user, profile, role } = await getMyProfileOrThrow();
+export function routeByRole(role) {
+  if (role === "admin") return "admin.html";
+  if (role === "teacher") return "teacher.html";
+  return "student.html";
+}
 
-    // Se a página exige role específico e não bate
-    if (allowedRoles.length && !allowedRoles.includes(role)) {
-      const dest = roleHome(role);
-      setRedirectLock();
-      window.location.replace(dest);
-      return null;
+export function startRouter() {
+  let guarding = false;
+
+  onAuth(async (user) => {
+    if (guarding) return;
+    guarding = true;
+
+    try {
+      const current = here();
+
+      if (!user) {
+        // Deslogado: só index
+        if (current !== "index.html" && current !== "") go("index.html");
+        guarding = false;
+        return;
+      }
+
+      const profile = await getMyProfile(user.uid);
+
+      if (!profile || !profile.role) {
+        // Logou no Auth, mas sem perfil no Firestore
+        // Para evitar loop/piscando: faz logout e volta index
+        try { await auth.signOut(); } catch {}
+        go("index.html");
+        guarding = false;
+        return;
+      }
+
+      const dest = routeByRole(profile.role);
+
+      // Se já está na página certa, não redireciona (evita “piscar”)
+      if (current !== dest) go(dest);
+    } catch (e) {
+      // Se falhar, volta index (evita tela branca)
+      try { await auth.signOut(); } catch {}
+      go("index.html");
+    } finally {
+      guarding = false;
     }
-
-    clearRedirectLock();
-    return { user, profile, role };
-  } catch (e) {
-    // Não logado / perfil inválido → volta pro login SEM loop
-    try { await signOut(); } catch {}
-    setRedirectLock();
-    window.location.replace("./index.html");
-    return null;
-  }
+  });
 }
