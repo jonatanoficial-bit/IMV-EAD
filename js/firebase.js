@@ -1,9 +1,10 @@
 // js/firebase.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-const firebaseConfig = {
+// ✅ SEU CONFIG REAL (não pode ficar "SUA_API_KEY")
+export const firebaseConfig = {
   apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
   authDomain: "imvapp-aef54.firebaseapp.com",
   projectId: "imvapp-aef54",
@@ -13,6 +14,6 @@ const firebaseConfig = {
   measurementId: "G-2LEK7QDZ48"
 };
 
-export const app = initializeApp(firebaseConfig);
+export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
