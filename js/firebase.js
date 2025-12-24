@@ -1,6 +1,4 @@
 // js/firebase.js
-// ÚNICO local do Firebase config (não pode existir firebaseConfig em nenhum HTML)
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -18,6 +16,3 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
-// útil para debug (opcional)
-export const projectId = firebaseConfig.projectId;
