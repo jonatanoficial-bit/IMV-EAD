@@ -1,5 +1,9 @@
 // js/teacher.js
-// Painel do Professor: ver turmas do professor, listar alunos matriculados e salvar presença/nota/comentário.
+// Painel do Professor: listar turmas do professor, alunos matriculados, presença/nota/comentário.
+// Correções:
+// - não trava em "carregando": mostra erro na tela
+// - busca turmas via getDocs(collection) e filtra no JS (menos chance de index)
+// - logs e mensagens claras em caso de permission-denied
 
 import { auth, db } from "./firebase.js";
 
@@ -14,22 +18,22 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   setDoc,
-  serverTimestamp,
-  limit
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
 
 function showBox(el, text, isError = false) {
+  if (!el) return;
   el.style.display = "block";
   el.textContent = text;
   el.style.borderColor = isError ? "rgba(255,92,122,.45)" : "rgba(72,213,151,.35)";
   el.style.background = isError ? "rgba(255,92,122,.10)" : "rgba(72,213,151,.08)";
 }
 function hideBox(el) {
+  if (!el) return;
   el.style.display = "none";
   el.textContent = "";
 }
@@ -41,10 +45,20 @@ function escapeHtml(str) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+function safeSortByLabel(a, b) {
+  return (a.label || "").toLowerCase().localeCompare((b.label || "").toLowerCase());
+}
 function safeSortByName(a, b) {
   const an = (a?.studentName || a?.studentEmail || "").toLowerCase();
   const bn = (b?.studentName || b?.studentEmail || "").toLowerCase();
   return an.localeCompare(bn);
+}
+function prettyErr(e) {
+  const msg = (e?.message || String(e || "")).toLowerCase();
+  if (msg.includes("permission-denied")) return "❌ Sem permissão no Firestore (permission-denied). Precisa ajustar as Rules para professor ler turmas/matrículas.";
+  if (msg.includes("requires an index")) return "❌ Firestore pediu índice. (Não deveria aqui. Me mande print do erro.)";
+  if (msg.includes("network")) return "❌ Falha de rede. Tente novamente.";
+  return "❌ Erro: " + (e?.message || String(e));
 }
 
 async function logout() {
@@ -74,68 +88,102 @@ async function requireTeacher(user) {
   return profile;
 }
 
+// ================== Estado ==================
+let currentTeacher = null;
+let currentEnrollments = [];
+
 // ================== Turmas do professor ==================
 async function loadMyClasses(teacherId) {
   const sel = $("selClass");
-  sel.innerHTML = `<option value="">Carregando turmas…</option>`;
+  const histTbody = $("histTbody");
+  const studentsTbody = $("studentsTbody");
 
-  // ✅ sem orderBy para evitar índice. Ordenamos no JS.
-  const qy = query(collection(db, "classes"), where("teacherId", "==", teacherId));
-  const snap = await getDocs(qy);
+  if (sel) sel.innerHTML = `<option value="">Carregando turmas…</option>`;
+  if (histTbody) histTbody.innerHTML = `<tr><td colspan="4" class="muted">Selecione uma turma para ver o histórico.</td></tr>`;
+  if (studentsTbody) studentsTbody.innerHTML = `<tr><td colspan="4" class="muted">Selecione uma turma e clique em “Carregar alunos”.</td></tr>`;
 
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    if (d.active !== true) return;
-    const label = `${d.title || s.id} • ${d.courseName || ""}`.trim();
-    list.push({ id: s.id, label });
-  });
+  try {
+    // ✅ Carrega todas as turmas e filtra no JS (evita índice e evita where falhar por regras específicas)
+    const snap = await getDocs(collection(db, "classes"));
 
-  list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+    const list = [];
+    snap.forEach(s => {
+      const d = s.data() || {};
+      if (d.active !== true) return;
+      if (String(d.teacherId || "") !== String(teacherId)) return;
 
-  sel.innerHTML = list.length
-    ? `<option value="">Selecione uma turma</option>` + list.map(x => `<option value="${x.id}">${escapeHtml(x.label)}</option>`).join("")
-    : `<option value="">Nenhuma turma ativa</option>`;
+      const label = `${d.title || s.id} • ${d.courseName || ""}`.trim();
+      list.push({ id: s.id, label });
+    });
+
+    list.sort(safeSortByLabel);
+
+    if (!sel) return;
+
+    sel.innerHTML = list.length
+      ? `<option value="">Selecione uma turma</option>` +
+        list.map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.label)}</option>`).join("")
+      : `<option value="">Nenhuma turma ativa (para este professor)</option>`;
+
+  } catch (e) {
+    console.error("loadMyClasses error:", e);
+    if (sel) sel.innerHTML = `<option value="">Erro ao carregar turmas</option>`;
+    alert(prettyErr(e));
+  }
+}
+
+// ================== Data da aula ==================
+function setTodayIfEmpty() {
+  const inp = $("lessonDate");
+  if (!inp) return;
+  if (inp.value) return;
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  inp.value = `${yyyy}-${mm}-${dd}`;
+}
+function getLessonDate() {
+  return ($("lessonDate")?.value || "");
+}
+function attendanceDocId(classId, date, studentId) {
+  return `${classId}_${date}_${studentId}`;
 }
 
 // ================== Alunos matriculados ==================
-let currentTeacher = null;
-let currentClass = null;
-let currentEnrollments = []; // enrollments da turma carregada
-
 async function loadStudentsForClass(classId) {
   const tbody = $("studentsTbody");
   const out = $("outSave");
   hideBox(out);
 
-  $("studentsCount").textContent = "0";
-  tbody.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
+  if ($("studentsCount")) $("studentsCount").textContent = "0";
+  if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
 
-  // Carrega enrollments da turma
-  const qy = query(collection(db, "enrollments"), where("classId", "==", classId));
-  const snap = await getDocs(qy);
+  try {
+    // ✅ Busca enrollments por classId (pode depender de rules; se negar, mostra erro)
+    const qy = query(collection(db, "enrollments"), where("classId", "==", classId));
+    const snap = await getDocs(qy);
 
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    // Só ativos
-    if (d.active !== true) return;
-    list.push({ id: s.id, ...d });
-  });
+    const list = [];
+    snap.forEach(s => {
+      const d = s.data() || {};
+      if (d.active !== true) return;
+      list.push({ id: s.id, ...d });
+    });
 
-  list.sort(safeSortByName);
-  currentEnrollments = list;
+    list.sort(safeSortByName);
+    currentEnrollments = list;
 
-  $("studentsCount").textContent = String(list.length);
+    if ($("studentsCount")) $("studentsCount").textContent = String(list.length);
 
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted">Nenhum aluno matriculado nesta turma.</td></tr>`;
-    return;
-  }
+    if (!tbody) return;
 
-  // Render tabela
-  const rows = list.map((e) => {
-    return `
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">Nenhum aluno matriculado nesta turma.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map((e) => `
       <tr data-enroll="${escapeHtml(e.id)}" data-student="${escapeHtml(e.studentId)}">
         <td>
           <b>${escapeHtml(e.studentName || e.studentEmail || "Aluno")}</b><br>
@@ -148,30 +196,19 @@ async function loadStudentsForClass(classId) {
             <option value="justificada">justificada</option>
           </select>
         </td>
-        <td>
-          <input class="input grade" placeholder="0–10 ou texto" />
-        </td>
-        <td>
-          <input class="input note" placeholder="Comentário rápido da aula" />
-        </td>
+        <td><input class="input grade" placeholder="0–10 ou texto" /></td>
+        <td><input class="input note" placeholder="Comentário rápido da aula" /></td>
       </tr>
-    `;
-  }).join("");
+    `).join("");
 
-  tbody.innerHTML = rows;
+    await preloadAttendanceForDate(classId);
+    await loadHistoryForClass(classId);
 
-  // pré-carregar dados já salvos para a data (se existirem)
-  await preloadAttendanceForDate(classId);
-}
-
-function getLessonDate() {
-  const d = $("lessonDate").value;
-  return d || "";
-}
-
-// attendance docId: `${classId}_${date}_${studentId}`
-function attendanceDocId(classId, date, studentId) {
-  return `${classId}_${date}_${studentId}`;
+  } catch (e) {
+    console.error("loadStudentsForClass error:", e);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="muted">Erro ao carregar alunos.</td></tr>`;
+    alert(prettyErr(e));
+  }
 }
 
 async function preloadAttendanceForDate(classId) {
@@ -179,157 +216,154 @@ async function preloadAttendanceForDate(classId) {
   if (!date) return;
 
   const tbody = $("studentsTbody");
-  const trs = Array.from(tbody.querySelectorAll("tr[data-student]"));
+  const trs = Array.from(tbody?.querySelectorAll("tr[data-student]") || []);
   if (!trs.length) return;
 
-  // Para não fazer N queries pesadas: vamos fazer getDoc individual (é ok com turma pequena)
-  for (const tr of trs) {
-    const studentId = tr.getAttribute("data-student");
-    const docId = attendanceDocId(classId, date, studentId);
-    const ref = doc(db, "attendance", docId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) continue;
+  try {
+    for (const tr of trs) {
+      const studentId = tr.getAttribute("data-student");
+      const docId = attendanceDocId(classId, date, studentId);
+      const snap = await getDoc(doc(db, "attendance", docId));
+      if (!snap.exists()) continue;
 
-    const data = snap.data() || {};
-    const presenceSel = tr.querySelector("select.presence");
-    const gradeInp = tr.querySelector("input.grade");
-    const noteInp = tr.querySelector("input.note");
+      const data = snap.data() || {};
+      const presenceSel = tr.querySelector("select.presence");
+      const gradeInp = tr.querySelector("input.grade");
+      const noteInp = tr.querySelector("input.note");
 
-    if (presenceSel && data.presence) presenceSel.value = data.presence;
-    if (gradeInp && typeof data.grade !== "undefined") gradeInp.value = String(data.grade || "");
-    if (noteInp && typeof data.note !== "undefined") noteInp.value = String(data.note || "");
+      if (presenceSel && data.presence) presenceSel.value = data.presence;
+      if (gradeInp && typeof data.grade !== "undefined") gradeInp.value = String(data.grade || "");
+      if (noteInp && typeof data.note !== "undefined") noteInp.value = String(data.note || "");
+    }
+  } catch (e) {
+    console.error("preloadAttendanceForDate error:", e);
+    // não trava a tela, só avisa
   }
 }
 
+// ================== Salvar presença/nota ==================
 async function saveAllForDate() {
   const out = $("outSave");
   hideBox(out);
 
-  const classId = $("selClass").value;
+  const classId = $("selClass")?.value || "";
   const date = getLessonDate();
 
   if (!classId) { showBox(out, "❌ Selecione uma turma.", true); return; }
   if (!date) { showBox(out, "❌ Selecione a data da aula.", true); return; }
 
   const tbody = $("studentsTbody");
-  const trs = Array.from(tbody.querySelectorAll("tr[data-student]"));
+  const trs = Array.from(tbody?.querySelectorAll("tr[data-student]") || []);
   if (!trs.length) { showBox(out, "❌ Não há alunos para salvar.", true); return; }
 
-  // Puxa info da turma (para salvar nomes junto)
-  const clSnap = await getDoc(doc(db, "classes", classId));
-  const cl = clSnap.exists() ? (clSnap.data() || {}) : {};
+  try {
+    const clSnap = await getDoc(doc(db, "classes", classId));
+    const cl = clSnap.exists() ? (clSnap.data() || {}) : {};
 
-  let ok = 0;
-  for (const tr of trs) {
-    const studentId = tr.getAttribute("data-student");
-    const enrollId = tr.getAttribute("data-enroll") || "";
+    let ok = 0;
+    for (const tr of trs) {
+      const studentId = tr.getAttribute("data-student");
+      const enrollId = tr.getAttribute("data-enroll") || "";
 
-    const presence = tr.querySelector("select.presence")?.value || "presente";
-    const grade = tr.querySelector("input.grade")?.value?.trim() || "";
-    const note = tr.querySelector("input.note")?.value?.trim() || "";
+      const presence = tr.querySelector("select.presence")?.value || "presente";
+      const grade = tr.querySelector("input.grade")?.value?.trim() || "";
+      const note = tr.querySelector("input.note")?.value?.trim() || "";
 
-    // Busca enrollment no cache
-    const enr = currentEnrollments.find(x => x.studentId === studentId) || {};
+      const enr = currentEnrollments.find(x => x.studentId === studentId) || {};
 
-    const payload = {
-      classId,
-      classTitle: cl.title || "",
-      courseId: cl.courseId || "",
-      courseName: cl.courseName || "",
-      teacherId: currentTeacher?.uid || "",
-      teacherName: currentTeacher?.name || "",
-      studentId,
-      studentName: enr.studentName || "",
-      studentEmail: enr.studentEmail || "",
-      enrollmentId: enrollId,
-      date, // YYYY-MM-DD
-      presence, // presente / falta / justificada
-      grade, // texto livre (0–10 ou observação)
-      note,  // comentário
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
+      const payload = {
+        classId,
+        classTitle: cl.title || "",
+        courseId: cl.courseId || "",
+        courseName: cl.courseName || "",
+        teacherId: currentTeacher?.uid || "",
+        teacherName: currentTeacher?.name || "",
+        studentId,
+        studentName: enr.studentName || "",
+        studentEmail: enr.studentEmail || "",
+        enrollmentId: enrollId,
+        date,
+        presence,
+        grade,
+        note,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
 
-    const docId = attendanceDocId(classId, date, studentId);
-    await setDoc(doc(db, "attendance", docId), payload, { merge: true });
-    ok++;
+      const docId = attendanceDocId(classId, date, studentId);
+      await setDoc(doc(db, "attendance", docId), payload, { merge: true });
+      ok++;
+    }
+
+    showBox(out, `✅ Salvo!\nTurma: ${cl.title || classId}\nData: ${date}\nRegistros: ${ok}`, false);
+    await loadHistoryForClass(classId);
+
+  } catch (e) {
+    console.error("saveAllForDate error:", e);
+    showBox(out, prettyErr(e), true);
   }
-
-  showBox(out, `✅ Salvo!\nTurma: ${cl.title || classId}\nData: ${date}\nRegistros: ${ok}`);
-
-  await loadHistoryForClass(classId);
 }
 
 // ================== Histórico ==================
 async function loadHistoryForClass(classId) {
   const tbody = $("histTbody");
-  tbody.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
-  $("histCount").textContent = "0";
+  if ($("histCount")) $("histCount").textContent = "0";
+  if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
 
-  // ✅ Pode pedir índice se usar where+orderBy. Vamos evitar:
-  // - buscamos por where(classId) e ordenamos no JS por date desc.
-  const qy = query(collection(db, "attendance"), where("classId", "==", classId));
-  const snap = await getDocs(qy);
+  try {
+    const qy = query(collection(db, "attendance"), where("classId", "==", classId));
+    const snap = await getDocs(qy);
 
-  const list = [];
-  snap.forEach(s => {
-    const d = s.data() || {};
-    list.push(d);
-  });
+    const list = [];
+    snap.forEach(s => list.push(s.data() || {}));
 
-  // Ordena por date desc (string YYYY-MM-DD funciona)
-  list.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    list.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const sliced = list.slice(0, 30);
 
-  // Mostra só os últimos 30 registros (pra não ficar pesado)
-  const sliced = list.slice(0, 30);
-  $("histCount").textContent = String(sliced.length);
+    if ($("histCount")) $("histCount").textContent = String(sliced.length);
 
-  if (!sliced.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="muted">Ainda não há registros nesta turma.</td></tr>`;
-    return;
+    if (!tbody) return;
+
+    if (!sliced.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">Ainda não há registros nesta turma.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = sliced.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.date || "")}</td>
+        <td><b>${escapeHtml(r.studentName || r.studentEmail || "")}</b></td>
+        <td>${escapeHtml(r.presence || "")}</td>
+        <td>${escapeHtml(r.grade || "")}</td>
+      </tr>
+    `).join("");
+
+  } catch (e) {
+    console.error("loadHistoryForClass error:", e);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="muted">Erro ao carregar histórico.</td></tr>`;
   }
-
-  tbody.innerHTML = sliced.map((r) => `
-    <tr>
-      <td>${escapeHtml(r.date || "")}</td>
-      <td><b>${escapeHtml(r.studentName || r.studentEmail || "")}</b></td>
-      <td>${escapeHtml(r.presence || "")}</td>
-      <td>${escapeHtml(r.grade || "")}</td>
-    </tr>
-  `).join("");
 }
 
-// ================== UI events ==================
+// ================== Eventos ==================
 $("btnLogout")?.addEventListener("click", logout);
 
 $("btnLoad")?.addEventListener("click", async () => {
-  const classId = $("selClass").value;
+  const classId = $("selClass")?.value || "";
   if (!classId) return alert("Selecione uma turma.");
-  currentClass = classId;
   await loadStudentsForClass(classId);
-  await loadHistoryForClass(classId);
 });
 
 $("btnSaveAll")?.addEventListener("click", saveAllForDate);
 
 $("btnReloadHistory")?.addEventListener("click", async () => {
-  const classId = $("selClass").value;
+  const classId = $("selClass")?.value || "";
   if (!classId) return;
   await loadHistoryForClass(classId);
 });
 
-// default date = hoje
-(function setToday() {
-  const inp = $("lessonDate");
-  if (!inp) return;
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  inp.value = `${yyyy}-${mm}-${dd}`;
-})();
-
 // ================== Boot ==================
+setTodayIfEmpty();
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "./index.html";
@@ -340,13 +374,7 @@ onAuthStateChanged(auth, async (user) => {
   if (!profile) return;
 
   currentTeacher = { uid: user.uid, ...profile };
-  $("who").textContent = `${profile.name || user.email} • (professor)`;
+  if ($("who")) $("who").textContent = `${profile.name || user.email} • (professor)`;
 
   await loadMyClasses(user.uid);
-
-  // se só tiver 1 turma, selecionar automaticamente
-  const sel = $("selClass");
-  if (sel && sel.options.length === 2) {
-    sel.selectedIndex = 1;
-  }
 });
