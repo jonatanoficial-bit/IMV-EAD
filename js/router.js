@@ -1,69 +1,50 @@
-// js/router.js
-import { auth } from "./firebase.js";
-import { onAuth, getMyProfile } from "./auth.js";
+// js/router.js — roteador simples e estável por role
+import { requireUserProfile } from "./auth.js";
 
-function here() {
-  const path = location.pathname.split("/").pop() || "index.html";
-  return path.toLowerCase();
-}
-
-function basePath() {
-  // GitHub Pages: /IMV-EAD/...
-  // Retorna o diretório atual para montar links relativos
-  const p = location.pathname;
-  return p.endsWith("/") ? p : p.substring(0, p.lastIndexOf("/") + 1);
+function pageName() {
+  const p = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+  return p;
 }
 
 function go(file) {
-  const target = basePath() + file;
-  if (location.href.endsWith("/" + file) || location.href.endsWith(file)) return;
-  location.replace(target);
+  if (pageName() !== file.toLowerCase()) window.location.href = `./${file}`;
 }
 
-export function routeByRole(role) {
-  if (role === "admin") return "admin.html";
-  if (role === "teacher") return "teacher.html";
-  return "student.html";
-}
+// Páginas públicas:
+const PUBLIC = new Set(["index.html", ""]);
 
-export function startRouter() {
-  let guarding = false;
+export async function startRouter() {
+  const p = pageName();
+  if (PUBLIC.has(p)) return; // index não força nada
 
-  onAuth(async (user) => {
-    if (guarding) return;
-    guarding = true;
+  try {
+    const { profile } = await requireUserProfile();
+    const role = profile.role;
 
-    try {
-      const current = here();
-
-      if (!user) {
-        // Deslogado: só index
-        if (current !== "index.html" && current !== "") go("index.html");
-        guarding = false;
-        return;
-      }
-
-      const profile = await getMyProfile(user.uid);
-
-      if (!profile || !profile.role) {
-        // Logou no Auth, mas sem perfil no Firestore
-        // Para evitar loop/piscando: faz logout e volta index
-        try { await auth.signOut(); } catch {}
-        go("index.html");
-        guarding = false;
-        return;
-      }
-
-      const dest = routeByRole(profile.role);
-
-      // Se já está na página certa, não redireciona (evita “piscar”)
-      if (current !== dest) go(dest);
-    } catch (e) {
-      // Se falhar, volta index (evita tela branca)
-      try { await auth.signOut(); } catch {}
-      go("index.html");
-    } finally {
-      guarding = false;
+    // ✅ library e reports também entram aqui
+    if (p === "library.html") return;
+    if (p === "reports.html") {
+      if (role !== "admin") go("index.html");
+      return;
     }
-  });
+
+    if (role === "admin") {
+      if (p !== "admin.html") go("admin.html");
+      return;
+    }
+    if (role === "teacher") {
+      if (p !== "teacher.html") go("teacher.html");
+      return;
+    }
+    if (role === "student") {
+      if (p !== "student.html") go("student.html");
+      return;
+    }
+
+    // role desconhecida
+    go("index.html");
+  } catch (e) {
+    // não autenticado ou sem perfil → volta pro login
+    go("index.html");
+  }
 }
