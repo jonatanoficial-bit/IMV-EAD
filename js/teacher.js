@@ -1,6 +1,6 @@
-// js/teacher.js (ETAPA 9) — Professor: turmas + aulas/sessões + chamada + avaliações + notas
+// js/teacher.js (ETAPA 9) — Professor: turmas + aulas + chamada + avaliações + notas
 import { auth, db } from "./firebase.js";
-import { logout, getMyProfile } from "./auth.js";
+import { logout, requireUserProfile } from "./auth.js";
 
 import {
   collection,
@@ -20,7 +20,6 @@ function qs(sel){ return document.querySelector(sel); }
 function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
 function showMsg(el, ok, text){ el.className = ok ? "msg ok" : "msg err"; el.textContent=text; el.style.display="block"; }
 function hideMsg(el){ if(el){ el.style.display="none"; el.textContent=""; } }
-function pad2(n){ return String(n).padStart(2,"0"); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function toNum(s){
   const raw = (s||"").toString().trim();
@@ -29,19 +28,19 @@ function toNum(s){
   return Number.isFinite(n) ? n : 0;
 }
 
+function attendanceDocId(sessionId, studentId){ return `${sessionId}__${studentId}`; }
+function gradeDocId(assessmentId, studentId){ return `${assessmentId}__${studentId}`; }
+
 async function requireTeacher(){
-  const uid = auth.currentUser?.uid;
-  if(!uid) throw new Error("Não autenticado.");
-  const me = await getMyProfile(uid);
-  if(!me || me.role !== "teacher") throw new Error("Conta não é professor.");
-  qs("#meName").textContent = me.name || me.email || "Professor";
-  return { uid, ...me };
+  const { uid, profile } = await requireUserProfile();
+  if (profile.role !== "teacher") throw new Error("Conta não é professor.");
+  qs("#meName").textContent = profile.name || profile.email || "Professor";
+  return { uid, profile };
 }
 
 async function loadMyClasses(teacherId){
   const sel = qs("#teacherClassSel");
   sel.innerHTML = `<option value="">Carregando...</option>`;
-
   const snap = await getDocs(query(collection(db, "classes"), where("teacherId","==",teacherId), orderBy("createdAt","desc")));
   sel.innerHTML = `<option value="">Selecione...</option>`;
   snap.forEach(d=>{
@@ -51,7 +50,6 @@ async function loadMyClasses(teacherId){
     opt.textContent = `${c.name || "Turma"} • ${d.id}`;
     sel.appendChild(opt);
   });
-
   if(snap.size === 1){
     sel.value = snap.docs[0].id;
     sel.dispatchEvent(new Event("change"));
@@ -60,26 +58,20 @@ async function loadMyClasses(teacherId){
 
 async function getEnrollStudents(classId){
   const enrollSnap = await getDocs(query(collection(db, "enrollments"), where("classId","==",classId), where("status","==","active"), orderBy("createdAt","desc")));
-  const enrolls = enrollSnap.docs.map(d=>({ id:d.id, ...d.data() }));
-  const studentIds = enrolls.map(e=>e.studentId);
+  const studentIds = enrollSnap.docs.map(d=>d.data().studentId);
 
   const usersSnap = await getDocs(collection(db, "users"));
   const usersMap = new Map(usersSnap.docs.map(d=>[d.id, d.data()]));
 
-  const students = studentIds.map(id=>{
+  return studentIds.map(id=>{
     const u = usersMap.get(id) || {};
     return { id, name: u.name || "", email: u.email || "" };
   });
-
-  return students;
 }
 
 async function renderClassInfo(classId){
   const info = qs("#classInfo");
-  if(!classId){
-    info.innerHTML = "—";
-    return;
-  }
+  if(!classId){ info.innerHTML = "—"; return; }
   const cSnap = await getDoc(doc(db,"classes",classId));
   const c = cSnap.exists() ? cSnap.data() : {};
   const link = c.meetingLink ? `<a class="chip" href="${escapeHtml(c.meetingLink)}" target="_blank" rel="noopener">Abrir link</a>` : "";
@@ -99,9 +91,7 @@ async function renderClassInfo(classId){
 
 async function createSession({ classId, teacherId, date, topic, notes }){
   const ref = await addDoc(collection(db,"classSessions"), {
-    classId,
-    teacherId,
-    date,
+    classId, teacherId, date,
     topic: topic || "",
     notes: notes || "",
     createdAt: serverTimestamp(),
@@ -124,7 +114,6 @@ async function loadSessions(classId){
   }
 
   const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-
   list.innerHTML = rows.map(r=>`
     <div class="item">
       <div class="row">
@@ -142,26 +131,15 @@ async function loadSessions(classId){
     <option value="${escapeHtml(r.id)}">${escapeHtml(r.date || "-")} ${r.topic ? "• " + escapeHtml(r.topic) : ""}</option>
   `).join("");
 
-  // auto seleciona a mais recente
   sel.value = rows[0].id;
   sel.dispatchEvent(new Event("change"));
-
   return rows;
-}
-
-function attendanceDocId(sessionId, studentId){
-  return `${sessionId}__${studentId}`;
-}
-function gradeDocId(assessmentId, studentId){
-  return `${assessmentId}__${studentId}`;
 }
 
 async function loadAttendanceRecords(sessionId){
   const snap = await getDocs(query(collection(db,"attendanceRecords"), where("sessionId","==",sessionId)));
   const map = new Map();
-  snap.forEach(d=>{
-    map.set(d.data().studentId, { id:d.id, ...d.data() });
-  });
+  snap.forEach(d=> map.set(d.data().studentId, { id:d.id, ...d.data() }));
   return map;
 }
 
@@ -246,19 +224,15 @@ async function renderAttendanceBox({ classId, sessionId, teacherId }){
       try{
         const id = attendanceDocId(sessionId, studentId);
         await setDoc(doc(db,"attendanceRecords",id), {
-          classId,
-          sessionId,
-          studentId,
-          teacherId,
-          status,
-          note,
+          classId, sessionId, studentId, teacherId,
+          status, note,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         }, { merge:true });
 
         btn.textContent = "Salvo ✅";
         setTimeout(()=>{ btn.textContent="Salvar"; btn.disabled=false; }, 800);
-      }catch(e){
+      }catch{
         btn.disabled=false;
         btn.textContent="Erro";
       }
@@ -268,11 +242,7 @@ async function renderAttendanceBox({ classId, sessionId, teacherId }){
 
 async function createAssessment({ classId, teacherId, title, date, maxScore, description }){
   const ref = await addDoc(collection(db,"assessments"), {
-    classId,
-    teacherId,
-    title,
-    date,
-    maxScore,
+    classId, teacherId, title, date, maxScore,
     description: description || "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
@@ -315,16 +285,13 @@ async function loadAssessments(classId){
 
   sel.value = rows[0].id;
   sel.dispatchEvent(new Event("change"));
-
   return rows;
 }
 
 async function loadGrades(assessmentId){
   const snap = await getDocs(query(collection(db,"grades"), where("assessmentId","==",assessmentId)));
   const map = new Map();
-  snap.forEach(d=>{
-    map.set(d.data().studentId, { id:d.id, ...d.data() });
-  });
+  snap.forEach(d=> map.set(d.data().studentId, { id:d.id, ...d.data() }));
   return map;
 }
 
@@ -409,19 +376,15 @@ async function renderGradesBox({ classId, assessmentId, teacherId }){
       try{
         const id = gradeDocId(assessmentId, studentId);
         await setDoc(doc(db,"grades",id), {
-          classId,
-          assessmentId,
-          studentId,
-          teacherId,
-          score,
-          comment,
+          classId, assessmentId, studentId, teacherId,
+          score, comment,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         }, { merge:true });
 
         btn.textContent="Salvo ✅";
         setTimeout(()=>{ btn.textContent="Salvar"; btn.disabled=false; }, 800);
-      }catch(e){
+      }catch{
         btn.disabled=false;
         btn.textContent="Erro";
       }
@@ -448,10 +411,7 @@ async function main(){
       qs("#sessionsList").innerHTML = "";
       qs("#assessmentsList").innerHTML = "";
 
-      if(!classId){
-        await renderClassInfo("");
-        return;
-      }
+      if(!classId){ await renderClassInfo(""); return; }
 
       await renderClassInfo(classId);
       await loadSessions(classId);
@@ -523,5 +483,4 @@ async function main(){
     qs("#fatal").textContent = e?.message || "Erro no painel do professor.";
   }
 }
-
 main();
