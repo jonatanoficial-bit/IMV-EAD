@@ -14,43 +14,124 @@
       <div class="brand">
         <img src="./assets/logo-imv.png" alt="IMV" />
         <div class="t">
-          <div class="h">Painel Professor • IMV</div>
+          <div class="h">Painel do Professor • IMV</div>
           <div class="s"><span id="meName">...</span> • (teacher)</div>
         </div>
       </div>
-      <button id="btnLogout" class="secondary">Sair</button>
+      <div class="actions">
+        <a class="chip" href="./library.html">Biblioteca</a>
+        <button id="btnLogout" class="secondary">Sair</button>
+      </div>
     </div>
 
     <div id="fatal" class="msg err" style="display:none;"></div>
 
-    <div class="card">
-      <h2 style="margin:0 0 8px;font-size:18px;">Minha rotina</h2>
-      <div class="muted">Selecione uma turma para ver alunos matriculados e registrar presença/nota/comentário.</div>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Minhas turmas</h2>
+        <div class="muted">Selecione uma turma para fazer chamada e lançar notas.</div>
 
-      <div class="formRow">
-        <label>Turma</label>
-        <select id="classSelect" class="input"></select>
-        <div id="classStatus" class="muted"></div>
+        <div class="formRow" style="margin-top:12px;">
+          <label>Turma</label>
+          <select id="teacherClassSel" class="input"></select>
+        </div>
+
+        <div id="classInfo" class="muted" style="margin-top:10px;">—</div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Criar aula (sessão) e fazer chamada</h2>
+        <div class="muted">Crie a aula do dia e marque presença de cada aluno.</div>
+
+        <form id="formCreateSession" style="margin-top:12px;">
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Data</label>
+              <input id="sessionDate" class="input" type="date" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Tema da aula (opcional)</label>
+              <input id="sessionTopic" class="input" placeholder="Ex: Respiração e apoio" />
+            </div>
+          </div>
+
+          <div class="formRow">
+            <label>Observações (opcional)</label>
+            <textarea id="sessionNotes" class="input" rows="3" placeholder="Anotações do professor..."></textarea>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Criar aula</button>
+          </div>
+          <div id="msgSession" class="msg ok"></div>
+        </form>
+
+        <div id="sessionsList" style="margin-top:12px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Chamada (presença) — aula selecionada</h2>
+        <div class="muted">Escolha uma aula criada e marque presença dos alunos.</div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label>Aula (sessão)</label>
+          <select id="sessionSel" class="input"></select>
+        </div>
+
+        <div id="attendanceBox" style="margin-top:10px;"></div>
       </div>
 
-      <div class="formRow">
-        <label>Data</label>
-        <input id="dateInput" class="input" type="date" />
-      </div>
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Avaliações e Notas</h2>
+        <div class="muted">Crie uma avaliação e lance notas por aluno.</div>
 
-      <div id="msg" class="msg ok"></div>
+        <form id="formCreateAssessment" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Nome da avaliação</label>
+            <input id="assessTitle" class="input" placeholder="Ex: Avaliação 1 - Afinação" />
+          </div>
 
-      <hr class="sep"/>
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Data</label>
+              <input id="assessDate" class="input" type="date" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Nota máxima</label>
+              <input id="assessMax" class="input" inputmode="decimal" placeholder="Ex: 10" />
+            </div>
+          </div>
 
-      <h2 style="margin:0 0 8px;font-size:18px;">Alunos matriculados</h2>
-      <div id="studentsList" class="muted">Selecione uma turma.</div>
+          <div class="formRow">
+            <label>Descrição (opcional)</label>
+            <textarea id="assessDesc" class="input" rows="3" placeholder="Critérios, repertório, etc."></textarea>
+          </div>
 
-      <div class="actions" style="margin-top:14px;">
-        <button id="btnSave">Salvar presença/nota/comentário</button>
+          <div class="actions">
+            <button type="submit">Criar avaliação</button>
+          </div>
+          <div id="msgAssess" class="msg ok"></div>
+        </form>
+
+        <div id="assessmentsList" style="margin-top:12px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Lançar notas — avaliação selecionada</h2>
+        <div class="muted">Escolha uma avaliação e informe a nota de cada aluno.</div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label>Avaliação</label>
+          <select id="assessSel" class="input"></select>
+        </div>
+
+        <div id="gradesBox" style="margin-top:10px;"></div>
+
+        <div class="footer" style="margin-top:14px;">© IMV • Professor • Etapa 9</div>
       </div>
     </div>
 
-    <div class="footer">© IMV • Professor • Core estável</div>
+    <div class="footer">© IMV • Professor • Etapa 9</div>
   </div>
 
   <script type="module">
