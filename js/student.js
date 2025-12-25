@@ -1,4 +1,4 @@
-// js/student.js (ETAPA 8) — Aluno: turmas + pagamentos + contratos + ficha (somente leitura)
+// js/student.js (ETAPA 9) — Aluno: turmas + pagamentos + contratos + ficha + boletim + presenças
 import { auth, db } from "./firebase.js";
 import { logout, getMyProfile } from "./auth.js";
 
@@ -35,14 +35,17 @@ async function loadMyClasses(uid) {
   const enrollSnap = await getDocs(query(collection(db, "enrollments"), where("studentId","==",uid), orderBy("createdAt","desc")));
   if (enrollSnap.empty) {
     wrap.innerHTML = "<div class='muted'>Você ainda não tem matrícula.</div>";
-    return;
+    return [];
   }
 
   const classesSnap = await getDocs(collection(db, "classes"));
   const classMap = new Map(classesSnap.docs.map(d => [d.id, d.data()]));
 
-  wrap.innerHTML = enrollSnap.docs.map(d => {
-    const e = d.data();
+  const enrolls = enrollSnap.docs.map(d => ({ id:d.id, ...d.data() }));
+  const classIds = Array.from(new Set(enrolls.map(e=>e.classId)));
+
+  wrap.innerHTML = enrolls.map(d => {
+    const e = d;
     const c = classMap.get(e.classId) || {};
     const link = c.meetingLink ? `<a class="chip" href="${escapeHtml(c.meetingLink)}" target="_blank" rel="noopener">Entrar na aula</a>` : "";
     return `
@@ -60,6 +63,24 @@ async function loadMyClasses(uid) {
       </div>
     `;
   }).join("");
+
+  return classIds.map(id => ({ id, ...(classMap.get(id)||{}) }));
+}
+
+async function fillStudentClassSel(classes){
+  const sel = qs("#studentClassSel");
+  if(!sel) return;
+  sel.innerHTML = `<option value="">Selecione...</option>`;
+  classes.forEach(c=>{
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = `${c.name || "Turma"} • ${c.id}`;
+    sel.appendChild(opt);
+  });
+  if(classes.length === 1){
+    sel.value = classes[0].id;
+    sel.dispatchEvent(new Event("change"));
+  }
 }
 
 async function loadMyPayments(uid) {
@@ -245,14 +266,188 @@ async function loadMyProfile(uid){
   `;
 }
 
+// ============ ETAPA 9 (Boletim + Presença) ============
+
+function statusLabel(s){
+  if(s==="present") return "Presente";
+  if(s==="absent") return "Falta";
+  if(s==="late") return "Atraso";
+  if(s==="excused") return "Justificada";
+  return s || "-";
+}
+
+async function renderStudentBoletim({ uid, classId }){
+  const out = qs("#studentGrades");
+  if(!out) return;
+  if(!classId){
+    out.innerHTML = `<div class="muted">Selecione uma turma para ver suas notas.</div>`;
+    return;
+  }
+  out.innerHTML = "Carregando...";
+
+  const aSnap = await getDocs(query(collection(db,"assessments"), where("classId","==",classId), orderBy("date","desc"), limit(50)));
+  const assessments = aSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+  if(!assessments.length){
+    out.innerHTML = `<div class="muted">Ainda não existem avaliações nessa turma.</div>`;
+    return;
+  }
+
+  const gSnap = await getDocs(query(collection(db,"grades"), where("classId","==",classId), where("studentId","==",uid)));
+  const gradesMap = new Map();
+  gSnap.forEach(d=>{
+    const g = d.data();
+    gradesMap.set(g.assessmentId, g);
+  });
+
+  const rows = assessments.map(a=>{
+    const g = gradesMap.get(a.id);
+    const score = (g?.score ?? null);
+    const max = Number(a.maxScore || 10);
+    const pct = (score==null) ? "" : `${Math.round((Number(score)/max)*100)}%`;
+    return {
+      title: a.title || "Avaliação",
+      date: a.date || "-",
+      max,
+      score: (score==null ? "" : Number(score)),
+      percent: pct,
+      comment: g?.comment || ""
+    };
+  });
+
+  const avg = (() => {
+    const vals = rows.filter(r=>r.score!=="" && r.score!=null).map(r=>Number(r.score));
+    if(!vals.length) return null;
+    const sum = vals.reduce((a,b)=>a+b,0);
+    return Math.round((sum/vals.length)*100)/100;
+  })();
+
+  out.innerHTML = `
+    <div class="item">
+      <div class="row">
+        <div>
+          <div class="title">Boletim</div>
+          <div class="muted">Turma: ${escapeHtml(classId)} • Média (se houver): <strong>${avg==null? "-" : avg}</strong></div>
+        </div>
+        <div class="pill">notas</div>
+      </div>
+
+      <table class="table" style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>Avaliação</th>
+            <th>Data</th>
+            <th>Nota</th>
+            <th>%</th>
+            <th>Comentário</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`
+            <tr>
+              <td><div style="font-weight:900;">${escapeHtml(r.title)}</div></td>
+              <td class="muted">${escapeHtml(r.date)}</td>
+              <td>${r.score==="" ? `<span class="pill">—</span>` : `<strong>${escapeHtml(String(r.score))}</strong> / ${escapeHtml(String(r.max))}`}</td>
+              <td class="muted">${escapeHtml(r.percent || "")}</td>
+              <td class="muted">${escapeHtml(r.comment || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderStudentAttendance({ uid, classId }){
+  const out = qs("#studentAttendance");
+  if(!out) return;
+  if(!classId){
+    out.innerHTML = `<div class="muted">Selecione uma turma para ver presenças.</div>`;
+    return;
+  }
+  out.innerHTML = "Carregando...";
+
+  const sSnap = await getDocs(query(collection(db,"classSessions"), where("classId","==",classId), orderBy("date","desc"), limit(50)));
+  const sessions = sSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+  if(!sessions.length){
+    out.innerHTML = `<div class="muted">Ainda não existem aulas registradas nessa turma.</div>`;
+    return;
+  }
+
+  // carrega meus registros por turma
+  const rSnap = await getDocs(query(collection(db,"attendanceRecords"), where("classId","==",classId), where("studentId","==",uid)));
+  const recMap = new Map();
+  rSnap.forEach(d=>{
+    const r = d.data();
+    recMap.set(r.sessionId, r);
+  });
+
+  const presentCount = sessions.filter(s=> (recMap.get(s.id)?.status || "") === "present").length;
+  const absentCount = sessions.filter(s=> (recMap.get(s.id)?.status || "") === "absent").length;
+
+  out.innerHTML = `
+    <div class="item">
+      <div class="row">
+        <div>
+          <div class="title">Presenças</div>
+          <div class="muted">Turma: ${escapeHtml(classId)} • Presente: ${presentCount} • Falta: ${absentCount}</div>
+        </div>
+        <div class="pill">aulas</div>
+      </div>
+
+      <table class="table" style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Tema</th>
+            <th>Status</th>
+            <th>Obs</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sessions.map(s=>{
+            const r = recMap.get(s.id);
+            const st = r?.status || "";
+            return `
+              <tr>
+                <td><strong>${escapeHtml(s.date || "-")}</strong></td>
+                <td class="muted">${escapeHtml(s.topic || "")}</td>
+                <td>${st ? `<span class="pill">${escapeHtml(statusLabel(st))}</span>` : `<span class="pill">—</span>`}</td>
+                <td class="muted">${escapeHtml(r?.note || "")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 async function main(){
   try {
     qs("#btnLogout").addEventListener("click", () => logout());
     const me = await requireStudent();
-    await loadMyClasses(me.uid);
+
+    const classes = await loadMyClasses(me.uid);
+    await fillStudentClassSel(classes);
+
     await loadMyPayments(me.uid);
     await loadMyContracts(me.uid);
     await loadMyProfile(me.uid);
+
+    const classSel = qs("#studentClassSel");
+    if(classSel){
+      classSel.addEventListener("change", async ()=>{
+        const classId = classSel.value;
+        await renderStudentBoletim({ uid: me.uid, classId });
+        await renderStudentAttendance({ uid: me.uid, classId });
+      });
+      // dispara se já tiver valor
+      if(classSel.value){
+        classSel.dispatchEvent(new Event("change"));
+      }
+    }
   } catch (e) {
     qs("#fatal").style.display = "block";
     qs("#fatal").textContent = e?.message || "Erro no painel do aluno.";
