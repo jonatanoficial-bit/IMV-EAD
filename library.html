@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1b2b" />
+  <title>IMV • Biblioteca Musical</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <img src="./assets/logo-imv.png" alt="IMV" />
+        <div class="t">
+          <div class="h">Biblioteca Musical • IMV</div>
+          <div class="s">
+            <span id="meName">...</span>
+            <span class="pill" id="meRole">...</span>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="chip" id="backLink" href="./index.html">Voltar</a>
+        <button id="btnLogout" class="secondary">Sair</button>
+      </div>
+    </div>
+
+    <div id="fatal" class="msg err" style="display:none;"></div>
+
+    <div class="grid two" style="margin-top:14px;">
+      <!-- COLUNA ESQUERDA: LISTA -->
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:18px;">Páginas</h2>
+        <div class="muted">Conteúdos criados por Admin/Professor. Alunos podem ler.</div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label>Buscar (título, texto e tags)</label>
+          <input id="searchInput" class="input" placeholder="Ex: respiração, apoio, intervalos, cifra..." />
+        </div>
+
+        <div class="grid two" style="gap:10px;">
+          <div class="formRow" style="margin-top:0;">
+            <label>Categoria</label>
+            <select id="filterCategory" class="input">
+              <option value="">Todas</option>
+            </select>
+          </div>
+
+          <div class="formRow" style="margin-top:0;">
+            <label>Ordenar</label>
+            <select id="sortSelect" class="input">
+              <option value="pinned_updated">Fixadas + Atualização</option>
+              <option value="updated">Atualização</option>
+              <option value="title">Título</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid two" style="gap:10px;">
+          <div class="formRow" style="margin-top:0;">
+            <label>Turma (opcional)</label>
+            <select id="filterClass" class="input">
+              <option value="">Todas</option>
+            </select>
+          </div>
+
+          <div class="formRow" style="margin-top:0;">
+            <label>Curso (opcional)</label>
+            <select id="filterCourse" class="input">
+              <option value="">Todos</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid two" style="gap:10px; align-items:end;">
+          <div class="formRow" style="margin-top:0;">
+            <label style="display:flex; gap:10px; align-items:center;">
+              <input type="checkbox" id="onlyMine" />
+              <span>Somente minhas páginas</span>
+            </label>
+            <div class="muted">Admin vê tudo. Professor: suas páginas.</div>
+          </div>
+
+          <div class="formRow" style="margin-top:0;">
+            <label style="display:flex; gap:10px; align-items:center;">
+              <input type="checkbox" id="onlyPinned" />
+              <span>Somente fixadas</span>
+            </label>
+            <div class="muted">Páginas importantes no topo.</div>
+          </div>
+        </div>
+
+        <div class="actions" style="margin-top:10px;">
+          <button id="btnReload" class="secondary" type="button">Atualizar</button>
+        </div>
+
+        <div id="pagesList" style="margin-top:12px;">Carregando...</div>
+      </div>
+
+      <!-- COLUNA DIREITA: VISUALIZAR / EDITAR -->
+      <div class="card">
+        <div class="row" style="align-items:center; justify-content:space-between;">
+          <h2 style="margin:0;font-size:18px;">Leitor</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btnNew" class="secondary" type="button" style="display:none;">+ Nova Página</button>
+            <button id="btnEditToggle" class="secondary" type="button" style="display:none;">Editar</button>
+          </div>
+        </div>
+
+        <div id="viewer" style="margin-top:10px;">
+          <div class="muted">Selecione uma página para ler.</div>
+        </div>
+
+        <div id="editor" style="margin-top:14px; display:none;">
+          <hr class="sep"/>
+
+          <div class="row" style="align-items:center; justify-content:space-between;">
+            <div>
+              <h2 style="margin:0 0 4px;font-size:16px;">Editor (Admin/Professor)</h2>
+              <div class="muted">Crie e edite sem mexer no código. Salva no Firestore.</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button id="btnPreview" class="secondary" type="button">Preview</button>
+              <button id="btnVersions" class="secondary" type="button">Versões</button>
+            </div>
+          </div>
+
+          <form id="formPage" style="margin-top:12px;">
+            <input type="hidden" id="pageId" value="" />
+
+            <div class="grid two" style="gap:10px;">
+              <div class="formRow" style="margin-top:0;">
+                <label>Título</label>
+                <input id="pageTitle" class="input" placeholder="Ex: Respiração — Apoio e Controle" />
+              </div>
+
+              <div class="formRow" style="margin-top:0;">
+                <label>Categoria</label>
+                <select id="pageCategory" class="input">
+                  <option value="teoria">Teoria</option>
+                  <option value="tecnica">Técnica</option>
+                  <option value="harmonia">Harmonia</option>
+                  <option value="ritmo">Ritmo</option>
+                  <option value="repertorio">Repertório</option>
+                  <option value="exercicios">Exercícios</option>
+                  <option value="aquecimento">Aquecimento</option>
+                  <option value="ouvido">Percepção/Audição</option>
+                  <option value="historia">História</option>
+                  <option value="devocional">Devocional/Igreja</option>
+                  <option value="outros">Outros</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid two" style="gap:10px;">
+              <div class="formRow" style="margin-top:0;">
+                <label>Curso (opcional)</label>
+                <select id="pageCourse" class="input">
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="formRow" style="margin-top:0;">
+                <label>Turma (opcional)</label>
+                <select id="pageClass" class="input">
+                  <option value="">—</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid two" style="gap:10px;">
+              <div class="formRow" style="margin-top:0;">
+                <label>Tags (vírgula)</label>
+                <input id="pageTags" class="input" placeholder="Ex: respiração, apoio, afinação" />
+              </div>
+
+              <div class="formRow" style="margin-top:0;">
+                <label style="display:flex; gap:10px; align-items:center;">
+                  <input type="checkbox" id="pagePinned" />
+                  <span>Fixar no topo</span>
+                </label>
+                <div class="muted">Admin e professor podem fixar.</div>
+              </div>
+            </div>
+
+            <div class="grid two" style="gap:10px;">
+              <div class="formRow" style="margin-top:0;">
+                <label>Visibilidade</label>
+                <select id="pageVisibility" class="input">
+                  <option value="public">Público (todos logados)</option>
+                  <option value="private">Privado (apenas autor + admin)</option>
+                </select>
+              </div>
+              <div class="formRow" style="margin-top:0;">
+                <label>Resumo (opcional)</label>
+                <input id="pageSummary" class="input" placeholder="1 frase para aparecer na lista" />
+              </div>
+            </div>
+
+            <div class="formRow">
+              <label>Conteúdo (Markdown leve)</label>
+              <textarea id="pageBody" class="input" rows="10" placeholder="# Título
+- tópico 1
+- tópico 2
+
+**negrito** e *itálico*
+link: https://...
+"></textarea>
+              <div class="muted">Suporta: # ## ###, listas (-), **negrito**, *itálico*, links.</div>
+            </div>
+
+            <div class="formRow">
+              <label>Links de materiais (um por linha)</label>
+              <textarea id="pageLinks" class="input" rows="4" placeholder="https://..."></textarea>
+            </div>
+
+            <div id="previewBox" class="item" style="display:none; margin-top:10px;">
+              <div class="row">
+                <div class="title">Preview</div>
+                <div class="pill">render</div>
+              </div>
+              <div id="previewContent" class="muted" style="white-space:normal; margin-top:10px;"></div>
+            </div>
+
+            <div id="versionsBox" class="item" style="display:none; margin-top:10px;">
+              <div class="row">
+                <div class="title">Histórico de versões</div>
+                <div class="pill">log</div>
+              </div>
+              <div id="versionsList" class="muted" style="margin-top:10px;">Selecione uma página e clique em “Versões”.</div>
+            </div>
+
+            <div class="grid two" style="gap:10px;">
+              <div class="actions" style="margin-top:0;">
+                <button type="submit" id="btnSavePage">Salvar</button>
+              </div>
+              <div class="actions" style="margin-top:0; justify-content:flex-end;">
+                <button type="button" id="btnClear" class="secondary">Limpar</button>
+              </div>
+            </div>
+
+            <div id="msgPage" class="msg ok" style="display:none;"></div>
+          </form>
+        </div>
+
+        <div class="footer" style="margin-top:14px;">© IMV • Biblioteca • Etapa 6B</div>
+      </div>
+    </div>
+
+    <div class="footer">© IMV • Biblioteca Musical • Etapa 6B</div>
+  </div>
+
+  <script type="module">
+    import { startRouter } from "./js/router.js";
+    startRouter();
+  </script>
+  <script type="module" src="./js/library.js"></script>
+</body>
+</html>
