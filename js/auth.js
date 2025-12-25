@@ -1,9 +1,12 @@
-// js/auth.js
+// js/auth.js — auth estável (espera onAuthStateChanged)
 import { auth, db } from "./firebase.js";
+
 import {
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  setPersistence,
+  browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
 import {
@@ -11,57 +14,63 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-export function qs(sel, root = document) {
-  return root.querySelector(sel);
+let _authReadyPromise = null;
+let _lastUser = null;
+
+export async function initAuthPersistence() {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    // se falhar em algum navegador, segue sem quebrar
+  }
 }
 
-export function qsa(sel, root = document) {
-  return Array.from(root.querySelectorAll(sel));
+/**
+ * ✅ Espera a autenticação ficar pronta no mobile.
+ * Retorna: user (Firebase Auth user) ou null.
+ */
+export function waitForAuthReady() {
+  if (_authReadyPromise) return _authReadyPromise;
+
+  _authReadyPromise = new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      _lastUser = user || null;
+      unsub();
+      resolve(_lastUser);
+    });
+  });
+
+  return _authReadyPromise;
 }
 
-export function safeText(el, txt) {
-  if (!el) return;
-  el.textContent = txt ?? "";
-}
-
-export function setBusy(btn, busy, label = "Entrar") {
-  if (!btn) return;
-  btn.disabled = !!busy;
-  btn.dataset._label = btn.dataset._label || btn.textContent;
-  btn.textContent = busy ? "Carregando..." : (label || btn.dataset._label);
+export function getAuthUserNow() {
+  return auth.currentUser || _lastUser || null;
 }
 
 export async function login(email, password) {
-  if (!email || !password) throw new Error("Preencha e-mail e senha.");
-  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  await initAuthPersistence();
+  const cred = await signInWithEmailAndPassword(auth, email, password);
   return cred.user;
 }
 
 export async function logout() {
   await signOut(auth);
+  window.location.href = "./index.html";
 }
 
-export function onAuth(cb) {
-  return onAuthStateChanged(auth, cb);
-}
-
+/** Lê o perfil em /users/{uid} */
 export async function getMyProfile(uid) {
-  if (!uid) return null;
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
+  const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() };
 }
 
-export function friendlyFirebaseError(err) {
-  const msg = (err?.message || "").toLowerCase();
-
-  if (msg.includes("auth/invalid-credential")) return "Credenciais inválidas. Confira e-mail e senha.";
-  if (msg.includes("auth/wrong-password")) return "Senha incorreta.";
-  if (msg.includes("auth/user-not-found")) return "Usuário não encontrado.";
-  if (msg.includes("auth/too-many-requests")) return "Muitas tentativas. Aguarde e tente novamente.";
-  if (msg.includes("api-key-not-valid")) return "Configuração do Firebase inválida (API KEY). Verifique js/firebase.js.";
-  if (msg.includes("missing or insufficient permissions")) return "Permissão insuficiente no Firestore (Rules).";
-
-  return err?.message || "Erro ao entrar.";
+/** Espera auth e já devolve { uid, profile } ou joga erro */
+export async function requireUserProfile() {
+  const user = await waitForAuthReady();
+  if (!user) throw new Error("Não autenticado.");
+  const profile = await getMyProfile(user.uid);
+  if (!profile) throw new Error("Usuário não cadastrado no Firestore (users/{uid}).");
+  if (profile.active !== true) throw new Error("Usuário inativo.");
+  return { uid: user.uid, profile };
 }
