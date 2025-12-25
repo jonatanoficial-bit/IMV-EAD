@@ -39,15 +39,399 @@
       </div>
     </div>
 
-    <!-- O RESTO do admin.html permanece igual ao que você está usando na etapa 8 -->
-    <!-- Não repito aqui para não estourar, mas como você exigiu "completo", eu vou enviar -->
-    <!-- o admin.html COMPLETO junto com o admin.js na parte 9B (porque é grande). -->
-    <!-- ATENÇÃO: Para não quebrar sua regra, na 9B eu mando o admin.html inteiro completo. -->
+    <div class="grid two" style="margin-top:14px;">
+      <!-- COLUNA 1 -->
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Cadastrar Aluno</h2>
+        <form id="formStudent">
+          <div class="formRow">
+            <label>Nome do aluno</label>
+            <input id="studentName" class="input" placeholder="Nome completo" />
+          </div>
+          <div class="formRow">
+            <label>Email do aluno (obrigatório)</label>
+            <input id="studentEmail" class="input" type="email" placeholder="email@exemplo.com" required />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar aluno</button>
+          </div>
+          <div id="msgStudent" class="msg ok"></div>
+        </form>
 
-    <div class="card" style="margin-top:14px;">
-      <div class="muted">
-        ✅ Etapa 9 adicionada: agora existe uma página separada <strong>reports.html</strong> para relatórios (notas/presença/CSV).
-        <br/>Abra pelo botão “Relatórios” acima.
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Cadastrar Professor</h2>
+        <form id="formTeacher">
+          <div class="formRow">
+            <label>Nome do professor</label>
+            <input id="teacherName" class="input" placeholder="Nome completo" />
+          </div>
+          <div class="formRow">
+            <label>Email do professor (obrigatório)</label>
+            <input id="teacherEmail" class="input" type="email" placeholder="email@exemplo.com" required />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar professor</button>
+          </div>
+          <div id="msgTeacher" class="msg ok"></div>
+        </form>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Avisos</h2>
+        <form id="formNotice">
+          <div class="formRow">
+            <label>Título</label>
+            <input id="noticeTitle" class="input" placeholder="Ex: Recesso de fim de ano" />
+          </div>
+          <div class="formRow">
+            <label>Mensagem</label>
+            <textarea id="noticeBody" class="input" rows="4" placeholder="Escreva o aviso..."></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit">Publicar aviso</button>
+          </div>
+          <div id="msgNotice" class="msg ok"></div>
+        </form>
+
+        <div id="noticesList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Prestadores (Etapa 5B)</h2>
+        <div class="muted">Defina taxa do professor (R$/hora), aprove sessões e gere pagamento.</div>
+
+        <form id="formTeacherRate" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Professor</label>
+            <select id="rateTeacherSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Taxa (R$ por hora)</label>
+            <input id="rateValue" class="input" inputmode="decimal" placeholder="Ex: 60,00" />
+          </div>
+          <div class="actions">
+            <button type="submit">Salvar taxa</button>
+          </div>
+          <div id="msgRate" class="msg ok"></div>
+        </form>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Aprovar sessões</h2>
+        <div class="muted">Sessões pendentes criadas pelos professores.</div>
+
+        <div class="grid" style="gap:10px; margin-top:10px;">
+          <div class="formRow" style="margin-top:0;">
+            <label>Filtro professor</label>
+            <select id="sessTeacherFilter" class="input"></select>
+          </div>
+          <div class="formRow" style="margin-top:0;">
+            <label>Período (início)</label>
+            <input id="sessFrom" class="input" type="date" />
+          </div>
+          <div class="formRow" style="margin-top:0;">
+            <label>Período (fim)</label>
+            <input id="sessTo" class="input" type="date" />
+          </div>
+          <div class="actions" style="margin-top:0;">
+            <button id="btnReloadSessions" class="secondary" type="button">Atualizar lista</button>
+          </div>
+        </div>
+
+        <div id="sessionsAdminList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Gerar pagamento (professor)</h2>
+        <form id="formGeneratePayout" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Professor</label>
+            <select id="payoutTeacherSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Período (início)</label>
+            <input id="payoutFrom" class="input" type="date" />
+          </div>
+          <div class="formRow">
+            <label>Período (fim)</label>
+            <input id="payoutTo" class="input" type="date" />
+          </div>
+          <div class="formRow">
+            <label>Observação (opcional)</label>
+            <input id="payoutNote" class="input" placeholder="Ex: Pagamento semanal / quinzenal..." />
+          </div>
+          <div class="actions">
+            <button type="submit">Gerar pagamento</button>
+          </div>
+          <div id="msgPayout" class="msg ok"></div>
+        </form>
+
+        <div id="payoutsAdminList" style="margin-top:10px;"></div>
+      </div>
+
+      <!-- COLUNA 2 -->
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Cursos</h2>
+        <form id="formCourse">
+          <div class="formRow">
+            <label>Título do curso</label>
+            <input id="courseTitle" class="input" placeholder="Ex: Canto Popular" />
+          </div>
+          <div class="formRow">
+            <label>Descrição</label>
+            <textarea id="courseDesc" class="input" rows="3" placeholder="Resumo do curso..."></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit">Criar curso</button>
+          </div>
+          <div id="msgCourse" class="msg ok"></div>
+        </form>
+
+        <div id="coursesList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Turmas</h2>
+        <form id="formClass">
+          <div class="formRow">
+            <label>Nome da turma</label>
+            <input id="className" class="input" placeholder="Ex: Turma 01 - Canto" />
+          </div>
+          <div class="formRow">
+            <label>Professor</label>
+            <select id="classTeacher" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Curso</label>
+            <select id="classCourse" class="input"></select>
+          </div>
+          <div class="actions">
+            <button type="submit">Criar turma</button>
+          </div>
+          <div id="msgClass" class="msg ok"></div>
+        </form>
+
+        <div id="classesList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Configurar Turma (modalidade/link)</h2>
+        <form id="formClassConfig" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Turma</label>
+            <select id="cfgClassSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Modalidade</label>
+            <select id="cfgModality" class="input">
+              <option value="online">Online</option>
+              <option value="presencial">Presencial</option>
+              <option value="hibrido">Híbrido</option>
+            </select>
+          </div>
+          <div class="formRow">
+            <label>Link da aula (Zoom/Meet/WhatsApp)</label>
+            <input id="cfgMeetingLink" class="input" placeholder="https://..." />
+          </div>
+          <div class="formRow">
+            <label>Dias/horários</label>
+            <input id="cfgSchedule" class="input" placeholder="Ex: Sábados 09:00 e 10:30" />
+          </div>
+          <div class="formRow">
+            <label>Observações</label>
+            <textarea id="cfgNotes" class="input" rows="3"></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit">Salvar configuração</button>
+          </div>
+          <div id="msgCfg" class="msg ok"></div>
+        </form>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Matrículas (Etapa 7)</h2>
+        <form id="formEnrollV2">
+          <div class="formRow">
+            <label>Aluno</label>
+            <select id="enrollStudentSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Turma</label>
+            <select id="enrollClassSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Plano mensal</label>
+            <select id="enrollPlanSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Valor personalizado (opcional)</label>
+            <input id="enrollCustomAmount" class="input" inputmode="decimal" placeholder="Ex: 150,00 (se vazio usa valor do plano)" />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar matrícula</button>
+          </div>
+          <div id="msgEnroll" class="msg ok"></div>
+        </form>
+
+        <div id="enrollList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Financeiro (Etapa 7)</h2>
+
+        <h3 style="margin:0 0 8px;font-size:16px;">Planos Mensais</h3>
+        <form id="formPlan">
+          <div class="formRow">
+            <label>Nome do plano</label>
+            <input id="planName" class="input" placeholder="Ex: Mensal Canto (2 sábados/mês)" />
+          </div>
+          <div class="formRow">
+            <label>Valor mensal (R$)</label>
+            <input id="planAmount" class="input" inputmode="decimal" placeholder="Ex: 200,00" />
+          </div>
+          <div class="formRow">
+            <label>Dia vencimento (1-28)</label>
+            <input id="planDueDay" class="input" inputmode="numeric" placeholder="Ex: 10" />
+          </div>
+          <div class="formRow">
+            <label>Chave PIX (aparece para o aluno)</label>
+            <input id="planPixKey" class="input" placeholder="Ex: sua-chave-pix" />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar plano</button>
+          </div>
+          <div id="msgPlan" class="msg ok"></div>
+        </form>
+
+        <div id="plansList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h3 style="margin:0 0 8px;font-size:16px;">Gerar mensalidades do mês</h3>
+        <div class="muted">Cria cobranças para matrículas ativas (se ainda não existir cobrança no mês).</div>
+
+        <form id="formGenerateMonth">
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Mês (AAAA-MM)</label>
+              <input id="genMonth" class="input" placeholder="2026-01" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Status inicial</label>
+              <select id="genStatus" class="input">
+                <option value="pending">Pendente</option>
+                <option value="open">Aberto</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit">Gerar cobranças do mês</button>
+          </div>
+          <div id="msgGenMonth" class="msg ok"></div>
+        </form>
+
+        <hr class="sep"/>
+
+        <h3 style="margin:0 0 8px;font-size:16px;">Cobranças (últimas)</h3>
+        <div class="muted">Aqui você vê o que o aluno enviou: forma de pagamento e comprovante.</div>
+        <div id="paymentsList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h3 style="margin:0 0 8px;font-size:16px;">Contratos</h3>
+        <form id="formContract">
+          <div class="formRow">
+            <label>Aluno</label>
+            <select id="contractStudentSel" class="input"></select>
+          </div>
+          <div class="formRow">
+            <label>Título</label>
+            <input id="contractTitle" class="input" placeholder="Ex: Contrato de Prestação de Serviços (IMV)" />
+          </div>
+          <div class="formRow">
+            <label>Texto do contrato (opcional)</label>
+            <textarea id="contractBody" class="input" rows="6" placeholder="Cole o texto... (ou use link abaixo)"></textarea>
+          </div>
+          <div class="formRow">
+            <label>Link do contrato (PDF/Drive) (opcional)</label>
+            <input id="contractLink" class="input" placeholder="https://..." />
+          </div>
+          <div class="actions">
+            <button type="submit">Criar contrato</button>
+          </div>
+          <div id="msgContract" class="msg ok"></div>
+        </form>
+
+        <div id="contractsList" style="margin-top:10px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Ficha do Aluno (Etapa 8)</h2>
+        <div class="muted">Cadastro completo + documentos + histórico. Tudo em Firestore.</div>
+
+        <form id="formStudentProfile" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Aluno</label>
+            <select id="profileStudentSel" class="input"></select>
+          </div>
+
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Telefone</label>
+              <input id="pPhone" class="input" placeholder="(xx) xxxxx-xxxx" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Data de nascimento</label>
+              <input id="pBirth" class="input" type="date" />
+            </div>
+          </div>
+
+          <div class="formRow">
+            <label>Endereço</label>
+            <input id="pAddress" class="input" placeholder="Rua, nº, bairro, cidade" />
+          </div>
+
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Responsável (nome)</label>
+              <input id="pGuardianName" class="input" placeholder="Se aplicável" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Responsável (telefone)</label>
+              <input id="pGuardianPhone" class="input" placeholder="(xx) xxxxx-xxxx" />
+            </div>
+          </div>
+
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>Observações gerais</label>
+              <textarea id="pNotes" class="input" rows="4" placeholder="Informações importantes (preferências, observações, etc.)"></textarea>
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Histórico acadêmico</label>
+              <textarea id="pHistory" class="input" rows="4" placeholder="Histórico/registro interno da escola"></textarea>
+            </div>
+          </div>
+
+          <hr class="sep"/>
+
+          <h3 style="margin:0 0 8px;font-size:16px;">Documentos / Links</h3>
+          <div class="muted">Cole links: contrato, RG, comprovantes, Drive, etc. (um por linha).</div>
+          <div class="formRow">
+            <label>Links (um por linha)</label>
+            <textarea id="pDocs" class="input" rows="4" placeholder="https://..."></textarea>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Salvar ficha</button>
+          </div>
+          <div id="msgProfile" class="msg ok"></div>
+        </form>
+
+        <div id="profilePreview" style="margin-top:10px;"></div>
+
+        <div class="footer" style="margin-top:14px;">© IMV • Admin • Etapa 9</div>
       </div>
     </div>
 
