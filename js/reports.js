@@ -1,6 +1,6 @@
 // js/reports.js (ETAPA 9) — Admin: relatórios notas/presença + export CSV
 import { auth, db } from "./firebase.js";
-import { logout } from "./auth.js";
+import { logout, requireUserProfile } from "./auth.js";
 
 import {
   collection,
@@ -18,7 +18,6 @@ function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g,m=>({ "&":"
 function showMsg(el, ok, text){ el.className = ok ? "msg ok" : "msg err"; el.textContent=text; el.style.display="block"; }
 function hideMsg(el){ if(el){ el.style.display="none"; el.textContent=""; } }
 
-function pad2(n){ return String(n).padStart(2,"0"); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 function downloadText(filename, text, mime="text/plain;charset=utf-8"){
@@ -48,14 +47,10 @@ function toCSV(rows){
 }
 
 async function ensureAdmin(){
-  const uid = auth.currentUser?.uid;
-  if(!uid) throw new Error("Não autenticado.");
-  const snap = await getDoc(doc(db,"users",uid));
-  if(!snap.exists()) throw new Error("Perfil não encontrado em users/{uid}.");
-  const role = snap.data()?.role;
-  if(role !== "admin") throw new Error("Sem permissão (role).");
-  qs("#meName").textContent = snap.data()?.name || snap.data()?.email || "Admin";
-  return { uid, ...snap.data() };
+  const { uid, profile } = await requireUserProfile();
+  if(profile.role !== "admin") throw new Error("Sem permissão (admin).");
+  qs("#meName").textContent = profile.name || profile.email || "Admin";
+  return { uid, profile };
 }
 
 async function fillClasses(){
@@ -183,8 +178,7 @@ async function exportGradesCSV(classId){
     };
   });
 
-  const csv = toCSV(rows);
-  downloadText(`IMV_notas_${classId}.csv`, csv, "text/csv;charset=utf-8");
+  downloadText(`IMV_notas_${classId}.csv`, toCSV(rows), "text/csv;charset=utf-8");
 }
 
 function inRange(dateStr, from, to){
@@ -207,10 +201,7 @@ async function reportAttendSummary(classId, from, to){
   const sessions = sSnap.docs.map(d=>({ id:d.id, ...d.data() })).filter(s=>inRange(s.date, from, to));
 
   const rSnap = await getDocs(query(collection(db,"attendanceRecords"), where("classId","==",classId)));
-  const records = rSnap.docs.map(d=>({ id:d.id, ...d.data() })).filter(r=>{
-    const sess = sessions.find(s=>s.id===r.sessionId);
-    return !!sess;
-  });
+  const records = rSnap.docs.map(d=>({ id:d.id, ...d.data() })).filter(r=>sessions.some(s=>s.id===r.sessionId));
 
   const enrollSnap = await getDocs(query(collection(db,"enrollments"), where("classId","==",classId), where("status","==","active")));
   const studentIds = enrollSnap.docs.map(d=>d.data().studentId);
@@ -218,7 +209,6 @@ async function reportAttendSummary(classId, from, to){
   const usersSnap = await getDocs(collection(db,"users"));
   const usersMap = new Map(usersSnap.docs.map(d=>[d.id, d.data()]));
 
-  // calc por aluno
   const byStudent = new Map(studentIds.map(id=>[id,{ present:0, absent:0, late:0, excused:0, total:0 }]));
   for(const r of records){
     if(!byStudent.has(r.studentId)) continue;
@@ -294,8 +284,7 @@ async function exportAttendCSV(classId, from, to){
     const u = usersMap.get(r.studentId) || {};
     const s = sessionMap.get(r.sessionId) || {};
     return {
-      classId,
-      className,
+      classId, className,
       sessionId: r.sessionId,
       sessionDate: s.date || "",
       sessionTopic: s.topic || "",
@@ -307,8 +296,7 @@ async function exportAttendCSV(classId, from, to){
     };
   });
 
-  const csv = toCSV(rows);
-  downloadText(`IMV_presenca_${classId}.csv`, csv, "text/csv;charset=utf-8");
+  downloadText(`IMV_presenca_${classId}.csv`, toCSV(rows), "text/csv;charset=utf-8");
 }
 
 async function main(){
@@ -367,5 +355,4 @@ async function main(){
     qs("#fatal").textContent = e?.message || "Erro nos relatórios.";
   }
 }
-
 main();
