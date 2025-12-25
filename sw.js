@@ -1,13 +1,12 @@
-// sw.js — cache simples e estável (sem quebrar login)
-// ✅ IMPORTANTE: versão nova para forçar update e não ficar preso no cache antigo
-const CACHE_NAME = "imv-ea-v3";
-
+// sw.js — cache simples para PWA (leve e estável)
+const CACHE_NAME = "imv-ea-v1";
 const ASSETS = [
   "./",
   "./index.html",
   "./admin.html",
   "./teacher.html",
   "./student.html",
+  "./library.html",
   "./css/styles.css",
   "./js/firebase.js",
   "./js/auth.js",
@@ -15,8 +14,12 @@ const ASSETS = [
   "./js/admin.js",
   "./js/teacher.js",
   "./js/student.js",
+  "./js/library.js",
+  "./js/markdown.js",
   "./manifest.webmanifest",
-  "./assets/logo-imv.png"
+  "./assets/logo-imv.png",
+  "./assets/icon-192.png",
+  "./assets/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
