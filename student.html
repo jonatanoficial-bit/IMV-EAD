@@ -35,27 +35,43 @@
 
         <h2 style="margin:0 0 10px;font-size:18px;">Mensalidades / Pagamentos</h2>
         <div class="muted">Escolha a forma de pagamento e envie o link do comprovante.</div>
-
         <div id="myPayments" style="margin-top:10px;">Carregando...</div>
       </div>
 
       <div class="card">
         <h2 style="margin:0 0 10px;font-size:18px;">Contratos</h2>
         <div class="muted">Leia e marque como “assinado”.</div>
-
         <div id="myContracts" style="margin-top:10px;">Carregando...</div>
 
         <hr class="sep"/>
 
-        <h2 style="margin:0 0 10px;font-size:18px;">Minha ficha (Etapa 8)</h2>
+        <h2 style="margin:0 0 10px;font-size:18px;">Minha ficha</h2>
         <div class="muted">Seu cadastro e documentos (somente leitura).</div>
         <div id="myProfile" style="margin-top:10px;">Carregando...</div>
 
-        <div class="footer" style="margin-top:14px;">© IMV • Aluno • Etapa 8</div>
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Boletim (Etapa 9)</h2>
+        <div class="muted">Veja suas notas, avaliações e presença.</div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label>Turma (para ver boletim)</label>
+          <select id="studentClassSel" class="input"></select>
+        </div>
+
+        <div id="studentGrades" style="margin-top:12px;"></div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Presenças (Etapa 9)</h2>
+        <div class="muted">Registro de presença por aula.</div>
+        <div id="studentAttendance" style="margin-top:12px;"></div>
+
+        <div class="footer" style="margin-top:14px;">© IMV • Aluno • Etapa 9</div>
       </div>
     </div>
 
-    <div class="footer">© IMV • Aluno • Etapa 8</div>
+    <div class="footer">© IMV • Aluno • Etapa 9</div>
   </div>
 
   <script type="module">
