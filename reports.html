@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1b2b" />
+  <title>IMV • Relatórios</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <img src="./assets/logo-imv.png" alt="IMV" />
+        <div class="t">
+          <div class="h">Relatórios • IMV</div>
+          <div class="s"><span id="meName">...</span> • (admin)</div>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="chip" href="./admin.html">Voltar</a>
+        <button id="btnLogout" class="secondary">Sair</button>
+      </div>
+    </div>
+
+    <div id="fatal" class="msg err" style="display:none;"></div>
+
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Relatório de Notas (Etapa 9)</h2>
+        <div class="muted">Resumo e export CSV das avaliações/notas de uma turma.</div>
+
+        <form id="formGradesReport" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Turma</label>
+            <select id="repClassGrades" class="input"></select>
+          </div>
+
+          <div class="formRow">
+            <label>Modo</label>
+            <select id="repGradesMode" class="input">
+              <option value="summary">Resumo na tela</option>
+              <option value="csv">Exportar CSV (notas)</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Gerar</button>
+          </div>
+          <div id="msgGradesRep" class="msg ok"></div>
+        </form>
+
+        <div id="outGrades" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Relatório de Presença (Etapa 9)</h2>
+        <div class="muted">Resumo e export CSV das presenças por aula.</div>
+
+        <form id="formAttendReport" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Turma</label>
+            <select id="repClassAttend" class="input"></select>
+          </div>
+
+          <div class="grid two" style="gap:10px;">
+            <div class="formRow" style="margin-top:0;">
+              <label>De</label>
+              <input id="repFrom" class="input" type="date" />
+            </div>
+            <div class="formRow" style="margin-top:0;">
+              <label>Até</label>
+              <input id="repTo" class="input" type="date" />
+            </div>
+          </div>
+
+          <div class="formRow">
+            <label>Modo</label>
+            <select id="repAttendMode" class="input">
+              <option value="summary">Resumo na tela</option>
+              <option value="csv">Exportar CSV (presença)</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Gerar</button>
+          </div>
+          <div id="msgAttendRep" class="msg ok"></div>
+        </form>
+
+        <div id="outAttend" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="footer">© IMV • Relatórios • Etapa 9</div>
+  </div>
+
+  <script type="module">
+    import { startRouter } from "./js/router.js";
+    startRouter();
+  </script>
+  <script type="module" src="./js/reports.js"></script>
+</body>
+</html>
