@@ -14,28 +14,48 @@
       <div class="brand">
         <img src="./assets/logo-imv.png" alt="IMV" />
         <div class="t">
-          <div class="h">Painel Aluno</div>
+          <div class="h">Painel do Aluno • IMV</div>
           <div class="s"><span id="meName">...</span> • (student)</div>
         </div>
       </div>
-      <button id="btnLogout" class="secondary">Sair</button>
+      <div class="actions">
+        <a class="chip" href="./library.html">Biblioteca</a>
+        <button id="btnLogout" class="secondary">Sair</button>
+      </div>
     </div>
 
     <div id="fatal" class="msg err" style="display:none;"></div>
 
-    <div class="grid two">
+    <div class="grid two" style="margin-top:14px;">
       <div class="card">
-        <h2 style="margin:0 0 8px;font-size:18px;">Minhas matrículas</h2>
-        <div id="enrollList" class="muted">Carregando...</div>
+        <h2 style="margin:0 0 10px;font-size:18px;">Minhas turmas</h2>
+        <div id="myClasses" class="muted">Carregando...</div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Mensalidades / Pagamentos</h2>
+        <div class="muted">Escolha a forma de pagamento e envie o link do comprovante.</div>
+
+        <div id="myPayments" style="margin-top:10px;">Carregando...</div>
       </div>
 
       <div class="card">
-        <h2 style="margin:0 0 8px;font-size:18px;">Meu histórico (últimos registros)</h2>
-        <div id="attList" class="muted">Carregando...</div>
+        <h2 style="margin:0 0 10px;font-size:18px;">Contratos</h2>
+        <div class="muted">Leia e marque como “assinado”.</div>
+
+        <div id="myContracts" style="margin-top:10px;">Carregando...</div>
+
+        <hr class="sep"/>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">Minha ficha (Etapa 8)</h2>
+        <div class="muted">Seu cadastro e documentos (somente leitura).</div>
+        <div id="myProfile" style="margin-top:10px;">Carregando...</div>
+
+        <div class="footer" style="margin-top:14px;">© IMV • Aluno • Etapa 8</div>
       </div>
     </div>
 
-    <div class="footer">© IMV • Aluno • Core estável</div>
+    <div class="footer">© IMV • Aluno • Etapa 8</div>
   </div>
 
   <script type="module">
