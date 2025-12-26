@@ -1,52 +1,23 @@
 // js/firebase.js
-import {
-  initializeApp,
-  getApps,
-  getApp,
-  deleteApp
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-/**
- * ATENÇÃO:
- * Cole aqui o firebaseConfig REAL do seu projeto.
- * Se ficar "SUA_API_KEY" ou "COLE..." vai dar exatamente o erro do print.
- */
+// ✅ CONFIG REAL (IMVAPP-AEF54) — a mesma do seu print do Firebase
 const firebaseConfig = {
-  apiKey: "COLE_AQUI_A_API_KEY_REAL",
-  authDomain: "COLE_AQUI_O_AUTH_DOMAIN_REAL",
-  projectId: "COLE_AQUI_O_PROJECT_ID_REAL",
-  storageBucket: "COLE_AQUI_O_STORAGE_BUCKET_REAL",
-  messagingSenderId: "COLE_AQUI_O_MESSAGING_SENDER_ID_REAL",
-  appId: "COLE_AQUI_O_APP_ID_REAL"
-  // measurementId: "..." (opcional)
+  apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
+  authDomain: "imvapp-aef54.firebaseapp.com",
+  projectId: "imvapp-aef54",
+  storageBucket: "imvapp-aef54.firebasestorage.app",
+  messagingSenderId: "439661516200",
+  appId: "1:439661516200:web:2d3ede20edbb9aa6d6f99d",
+  measurementId: "G-2LEK7QDZ48"
 };
 
+// ✅ evita inicializar 2x (causa bug/piscando)
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-/**
- * App secundário para cadastrar usuário sem deslogar o Admin
- */
-export async function createSecondaryAuth() {
-  const name = "secondary";
-
-  const existing = getApps().find(a => a.name === name);
-  if (existing) {
-    try { await deleteApp(existing); } catch {}
-  }
-
-  const sApp = initializeApp(firebaseConfig, name);
-  const sAuth = getAuth(sApp);
-
-  return {
-    sApp,
-    sAuth,
-    cleanup: async () => {
-      try { await deleteApp(sApp); } catch {}
-    }
-  };
-}
+console.log("🔥 Firebase OK:", app.name, firebaseConfig.projectId);
