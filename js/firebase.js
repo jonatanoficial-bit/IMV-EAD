@@ -3,8 +3,11 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// ✅ CONFIG REAL (IMVAPP-AEF54) — a mesma do seu print do Firebase
-const firebaseConfig = {
+/**
+ * CONFIG REAL (IMVAPP-AEF54) — público (apiKey não é “senha”)
+ * Se você usar Vercel + GitHub, essa config deve ser a mesma em todo lugar.
+ */
+export const firebaseConfig = {
   apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
   authDomain: "imvapp-aef54.firebaseapp.com",
   projectId: "imvapp-aef54",
@@ -14,10 +17,10 @@ const firebaseConfig = {
   measurementId: "G-2LEK7QDZ48"
 };
 
-// ✅ evita inicializar 2x (causa bug/piscando)
+// evita inicializar 2x (isso causa “piscando” e comportamentos estranhos)
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-console.log("🔥 Firebase OK:", app.name, firebaseConfig.projectId);
+console.log("🔥 Firebase carregado:", { projectId: firebaseConfig.projectId, appName: app.name });
