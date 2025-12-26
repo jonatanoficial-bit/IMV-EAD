@@ -1,65 +1,46 @@
-// js/markdown.js — Markdown LEVE (sem libs) para preview e leitura
-// Suporta: # ## ###, listas "-", **negrito**, *itálico*, links https://...
-function esc(s){
-  return (s ?? "").toString().replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+// js/markdown.js
+// Render bem simples e leve (sem libs) — suficiente pra wiki/biblioteca.
+export function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function linkify(line){
-  // transforma URLs em <a>
-  const urlRe = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/g;
-  return line.replace(urlRe, (m) => {
-    const href = m.startsWith("http") ? m : "https://" + m;
-    return `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(m)}</a>`;
-  });
-}
+export function renderMarkdown(md) {
+  const text = escapeHtml(md || "");
 
-function inline(md){
-  let t = esc(md);
-  // negrito
-  t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  // itálico
-  t = t.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  // links
-  t = linkify(t);
-  return t;
-}
+  // headers
+  let out = text
+    .replace(/^######\s?(.*)$/gm, "<h6>$1</h6>")
+    .replace(/^#####\s?(.*)$/gm, "<h5>$1</h5>")
+    .replace(/^####\s?(.*)$/gm, "<h4>$1</h4>")
+    .replace(/^###\s?(.*)$/gm, "<h3>$1</h3>")
+    .replace(/^##\s?(.*)$/gm, "<h2>$1</h2>")
+    .replace(/^#\s?(.*)$/gm, "<h1>$1</h1>");
 
-export function renderMarkdown(mdText){
-  const raw = (mdText ?? "").toString().replace(/\r\n/g, "\n");
-  const lines = raw.split("\n");
+  // bold/italic
+  out = out
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
 
-  let html = "";
-  let inList = false;
+  // links [txt](url)
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1</a>`);
 
-  const closeList = () => {
-    if (inList) { html += "</ul>"; inList = false; }
-  };
+  // listas simples
+  out = out.replace(/^\s*-\s(.+)$/gm, "<li>$1</li>");
+  out = out.replace(/(<li>[\s\S]*<\/li>)/g, "<ul>$1</ul>");
 
-  for (const line0 of lines){
-    const line = line0.trimEnd();
+  // parágrafos
+  out = out
+    .split(/\n{2,}/)
+    .map((chunk) => {
+      if (/^\s*<h\d|^\s*<ul>/.test(chunk)) return chunk;
+      return `<p>${chunk.replace(/\n/g, "<br/>")}</p>`;
+    })
+    .join("\n");
 
-    if (!line.trim()){
-      closeList();
-      html += `<div style="height:8px;"></div>`;
-      continue;
-    }
-
-    // headings
-    if (line.startsWith("### ")){ closeList(); html += `<h3 style="margin:10px 0 6px;">${inline(line.slice(4))}</h3>`; continue; }
-    if (line.startsWith("## ")){ closeList(); html += `<h2 style="margin:12px 0 6px; font-size:18px;">${inline(line.slice(3))}</h2>`; continue; }
-    if (line.startsWith("# ")){ closeList(); html += `<h1 style="margin:12px 0 6px; font-size:20px;">${inline(line.slice(2))}</h1>`; continue; }
-
-    // list
-    if (line.startsWith("- ")){
-      if (!inList){ html += "<ul style='margin:8px 0 8px 18px; padding:0;'>"; inList = true; }
-      html += `<li style="margin:4px 0;">${inline(line.slice(2))}</li>`;
-      continue;
-    }
-
-    closeList();
-    html += `<p style="margin:6px 0; line-height:1.5;">${inline(line)}</p>`;
-  }
-
-  closeList();
-  return html;
+  return out;
 }
