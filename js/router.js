@@ -1,50 +1,30 @@
-// js/router.js — roteador simples e estável por role
-import { requireUserProfile } from "./auth.js";
+// js/router.js
+import { getSession, safeLogout, logTo } from "./auth.js";
 
-function pageName() {
-  const p = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-  return p;
+export function roleToPage(role) {
+  if (role === "admin") return "./admin.html";
+  if (role === "teacher") return "./teacher.html";
+  return "./student.html";
 }
 
-function go(file) {
-  if (pageName() !== file.toLowerCase()) window.location.href = `./${file}`;
+export async function routeByRole(preLog = null) {
+  const s = await getSession(preLog);
+  if (!s.user || !s.profile) return "./index.html";
+  return roleToPage(s.profile.role);
 }
 
-// Páginas públicas:
-const PUBLIC = new Set(["index.html", ""]);
+export async function hardRouteNow(preLog = null) {
+  const url = await routeByRole(preLog);
+  location.replace(url);
+}
 
-export async function startRouter() {
-  const p = pageName();
-  if (PUBLIC.has(p)) return; // index não força nada
+export function bindLogout(btnId = "btnLogout", preLog = null) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
 
-  try {
-    const { profile } = await requireUserProfile();
-    const role = profile.role;
-
-    // ✅ library e reports também entram aqui
-    if (p === "library.html") return;
-    if (p === "reports.html") {
-      if (role !== "admin") go("index.html");
-      return;
-    }
-
-    if (role === "admin") {
-      if (p !== "admin.html") go("admin.html");
-      return;
-    }
-    if (role === "teacher") {
-      if (p !== "teacher.html") go("teacher.html");
-      return;
-    }
-    if (role === "student") {
-      if (p !== "student.html") go("student.html");
-      return;
-    }
-
-    // role desconhecida
-    go("index.html");
-  } catch (e) {
-    // não autenticado ou sem perfil → volta pro login
-    go("index.html");
-  }
+  btn.addEventListener("click", async () => {
+    logTo(preLog, "Logout solicitado...");
+    await safeLogout();
+    location.replace("./index.html");
+  });
 }
