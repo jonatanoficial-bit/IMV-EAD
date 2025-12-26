@@ -1,111 +1,284 @@
 <!doctype html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>IMV EAD • Admin</title>
-  <link rel="stylesheet" href="./css/styles.css" />
+  <title>Painel Admin • IMV</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./assets/logo-imv.png" />
+  <link rel="stylesheet" href="./css/styles.css?v=9" />
+
+  <style>
+    /* fallback leve caso styles.css não cubra tudo */
+    .container { max-width: 980px; margin: 0 auto; padding: 14px; }
+    .row { display: grid; gap: 12px; }
+    .row-2 { grid-template-columns: 1fr; }
+    @media(min-width: 860px){ .row-2{ grid-template-columns: 1fr 1fr; } }
+    .row-4 { grid-template-columns: 1fr 1fr; }
+    @media(min-width: 860px){ .row-4{ grid-template-columns: 1fr 1fr 1fr 1fr; } }
+    .card { border-radius: 18px; padding: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+    .tabs { display:flex; gap:10px; flex-wrap:wrap; }
+    .tab-btn { border-radius: 999px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.15); color:#fff; font-weight:700; }
+    .tab-btn.active { background: rgba(255,255,255,.14); }
+    .btn { border-radius: 14px; padding: 10px 14px; border: none; font-weight: 800; cursor:pointer; }
+    .btn.primary { background: linear-gradient(90deg,#4b8bff,#3de0a7); color:#05121f; }
+    .btn.ghost { background: rgba(255,255,255,.08); color:#fff; border: 1px solid rgba(255,255,255,.12); }
+    .input { width:100%; border-radius: 14px; padding: 12px 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.15); color:#fff; outline:none; }
+    .label { display:block; font-size: 13px; opacity: .85; margin: 10px 0 6px; }
+    .muted { opacity:.75; font-size: 13px; }
+    .danger { border: 1px solid rgba(255,80,80,.35); background: rgba(255,80,80,.10); }
+    .success { border: 1px solid rgba(70,240,170,.35); background: rgba(70,240,170,.10); }
+    .list { display:grid; gap:10px; }
+    .item { padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12); }
+    .item-title { font-weight:900; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.07); }
+    .hr { height:1px; background: rgba(255,255,255,.10); margin: 12px 0; }
+    .hide { display:none !important; }
+    .logo { width:56px; height:56px; border-radius: 16px; object-fit: cover; background: rgba(255,255,255,.08); }
+    .header { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .header-left { display:flex; gap:12px; align-items:center; }
+    .title { font-size: 22px; font-weight: 900; margin: 0; }
+  </style>
 </head>
 
 <body>
   <main class="container">
-    <header class="topbar">
-      <div class="topbar__left">
-        <img class="topbar__logo" src="./assets/logo-imv.png" alt="IMV" />
-        <div class="topbar__meta">
-          <div class="topbar__title">Painel Admin • IMV</div>
-          <div class="topbar__sub">
-            <span id="adminName">...</span> • (<span id="adminRole">admin</span>)
+
+    <section class="card">
+      <div class="header">
+        <div class="header-left">
+          <img class="logo" src="./assets/logo-imv.png" alt="IMV" />
+          <div>
+            <p class="title">Painel Admin • IMV</p>
+            <div class="muted">
+              <span id="whoName">...</span> • <span id="whoRole">...</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="row">
         <div class="tabs">
-          <button class="tab active" data-tab="admin">Admin</button>
-          <button class="tab" data-tab="library">Biblioteca</button>
-          <button class="tab" data-tab="reports">Relatórios</button>
+          <button class="tab-btn active" data-tab="tab-admin">Admin</button>
+          <button class="tab-btn" data-tab="tab-library">Biblioteca</button>
+          <button class="tab-btn" data-tab="tab-reports">Relatórios</button>
+          <button class="btn ghost" id="btnLogout">Sair</button>
         </div>
-        <button id="btnLogout" class="btn">Sair</button>
-      </div>
-    </header>
-
-    <div id="authAlert" class="alert error" style="display:none;"></div>
-
-    <section class="card">
-      <div class="stats">
-        <div class="stat">
-          <div class="num" id="statUsers">0</div>
-          <div class="lbl">Usuários</div>
-        </div>
-        <div class="stat">
-          <div class="num" id="statCourses">0</div>
-          <div class="lbl">Cursos</div>
-        </div>
-        <div class="stat">
-          <div class="num" id="statClasses">0</div>
-          <div class="lbl">Turmas</div>
-        </div>
-        <div class="stat">
-          <div class="num" id="statEnroll">0</div>
-          <div class="lbl">Matrículas</div>
-        </div>
-      </div>
-      <p class="help">Se aparecer “Missing or insufficient permissions”, é porque a leitura ocorreu antes do perfil/role carregar (ou role/active no Firestore está errado). O JS abaixo só deve buscar dados após autenticar.</p>
-    </section>
-
-    <section class="card" id="tab-admin">
-      <h2>Cadastrar Aluno</h2>
-      <div class="grid grid-2">
-        <label class="field">
-          <span>Nome do aluno</span>
-          <input id="studentName" placeholder="Nome completo" />
-        </label>
-        <label class="field">
-          <span>Email do aluno (obrigatório)</span>
-          <input id="studentEmail" type="email" placeholder="email@exemplo.com" />
-        </label>
-      </div>
-      <div class="row">
-        <button id="btnCreateStudent" class="btn btn-primary">Criar aluno</button>
-        <span class="help" id="createStudentMsg"></span>
-      </div>
-
-      <hr style="border:0;border-top:1px solid rgba(255,255,255,0.10); margin:16px 0;">
-
-      <h2>Cadastrar Professor</h2>
-      <div class="grid grid-2">
-        <label class="field">
-          <span>Nome do professor</span>
-          <input id="teacherName" placeholder="Nome completo" />
-        </label>
-        <label class="field">
-          <span>Email do professor (obrigatório)</span>
-          <input id="teacherEmail" type="email" placeholder="email@exemplo.com" />
-        </label>
-      </div>
-      <div class="row">
-        <button id="btnCreateTeacher" class="btn btn-primary">Criar professor</button>
-        <span class="help" id="createTeacherMsg"></span>
       </div>
     </section>
 
-    <section class="card" id="tab-library" style="display:none;">
-      <h2>Biblioteca</h2>
-      <p class="help">Esta aba depende do seu <code>library.js</code>. Aqui fica só a navegação (não quebra o layout).</p>
+    <section id="alertBox" class="card danger hide" style="margin-top:12px;">
+      <div id="alertText">Erro</div>
     </section>
 
-    <section class="card" id="tab-reports" style="display:none;">
-      <h2>Relatórios</h2>
-      <p class="help">Esta aba depende do seu <code>reports.js</code>. Aqui fica só a navegação (não quebra o layout).</p>
+    <!-- ================= TAB: ADMIN ================= -->
+    <section id="tab-admin" class="card" style="margin-top:12px;">
+      <div class="row row-4">
+        <div class="card">
+          <div class="muted">Usuários</div>
+          <div style="font-size:30px;font-weight:900" id="kpiUsers">0</div>
+        </div>
+        <div class="card">
+          <div class="muted">Cursos</div>
+          <div style="font-size:30px;font-weight:900" id="kpiCourses">0</div>
+        </div>
+        <div class="card">
+          <div class="muted">Turmas</div>
+          <div style="font-size:30px;font-weight:900" id="kpiClasses">0</div>
+        </div>
+        <div class="card">
+          <div class="muted">Matrículas</div>
+          <div style="font-size:30px;font-weight:900" id="kpiEnrollments">0</div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row row-2">
+        <!-- USERS -->
+        <div class="card">
+          <div class="item-title">Cadastrar Aluno</div>
+          <label class="label">Nome do aluno</label>
+          <input class="input" id="studentName" placeholder="Nome completo" />
+          <label class="label">Email do aluno (obrigatório)</label>
+          <input class="input" id="studentEmail" placeholder="email@exemplo.com" inputmode="email" />
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateStudent">Criar aluno</button>
+            <button class="btn ghost" id="btnRefreshAll1">Atualizar</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="item-title">Cadastrar Professor</div>
+          <label class="label">Nome do professor</label>
+          <input class="input" id="teacherName" placeholder="Nome completo" />
+          <label class="label">Email do professor (obrigatório)</label>
+          <input class="input" id="teacherEmail" placeholder="email@exemplo.com" inputmode="email" />
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateTeacher">Criar professor</button>
+            <button class="btn ghost" id="btnRefreshAll2">Atualizar</button>
+          </div>
+
+          <p class="muted" style="margin-top:10px;">
+            * Se o usuário já existir no Auth, criamos/atualizamos <b>/users/{uid}</b>.  
+            Se não existir, criamos um <b>convite</b> em <b>/invites</b> (você pode cadastrar depois).
+          </p>
+        </div>
+
+        <!-- COURSES / CLASSES / ENROLLMENTS -->
+        <div class="card">
+          <div class="item-title">Cursos</div>
+          <label class="label">Nome do curso</label>
+          <input class="input" id="courseName" placeholder="Ex: Violão Popular (Módulo 1)" />
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateCourse">Criar curso</button>
+            <button class="btn ghost" id="btnReloadCourses">Recarregar</button>
+          </div>
+          <div class="hr"></div>
+          <div id="coursesList" class="list"></div>
+
+          <div class="hr"></div>
+
+          <div class="item-title">Turmas</div>
+          <label class="label">Nome da turma</label>
+          <input class="input" id="className" placeholder="Ex: Turma Sábado A (2026)" />
+          <label class="label">Curso</label>
+          <select class="input" id="classCourse"></select>
+          <label class="label">Professor (por email)</label>
+          <select class="input" id="classTeacher"></select>
+
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateClass">Criar turma</button>
+            <button class="btn ghost" id="btnReloadClasses">Recarregar</button>
+          </div>
+
+          <div class="hr"></div>
+          <div id="classesList" class="list"></div>
+
+          <div class="hr"></div>
+
+          <div class="item-title">Matrículas</div>
+          <label class="label">Aluno (por email)</label>
+          <select class="input" id="enrStudent"></select>
+          <label class="label">Turma</label>
+          <select class="input" id="enrClass"></select>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateEnrollment">Matricular</button>
+            <button class="btn ghost" id="btnReloadEnrollments">Recarregar</button>
+          </div>
+
+          <div class="hr"></div>
+          <div id="enrollmentsList" class="list"></div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row row-2">
+        <!-- NOTICES -->
+        <div class="card">
+          <div class="item-title">Avisos (Notices)</div>
+          <label class="label">Título</label>
+          <input class="input" id="noticeTitle" placeholder="Ex: Recesso, Aula extra, Comunicado" />
+          <label class="label">Texto</label>
+          <textarea class="input" id="noticeBody" placeholder="Digite o comunicado..." rows="4"></textarea>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnCreateNotice">Publicar aviso</button>
+            <button class="btn ghost" id="btnReloadNotices">Recarregar</button>
+          </div>
+          <div class="hr"></div>
+          <div id="noticesList" class="list"></div>
+        </div>
+
+        <!-- USERS LIST -->
+        <div class="card">
+          <div class="item-title">Usuários cadastrados</div>
+          <p class="muted">Lista de /users. (Admin consegue ver tudo.)</p>
+          <div id="usersList" class="list"></div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="card">
+        <div class="item-title">Diagnóstico (Admin)</div>
+        <pre id="diag" class="item" style="white-space:pre-wrap;overflow:auto;max-height:320px;"></pre>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>Diagnóstico (Admin)</h2>
-      <pre id="adminLog" class="log"></pre>
+    <!-- ================= TAB: BIBLIOTECA ================= -->
+    <section id="tab-library" class="card hide" style="margin-top:12px;">
+      <div class="item-title">Biblioteca (editável)</div>
+      <p class="muted">
+        Conteúdos ficam na coleção <b>library</b>. Admin e professor podem adicionar/editar.
+      </p>
+
+      <div class="row row-2" style="margin-top:10px;">
+        <div class="card">
+          <div class="item-title">Novo item</div>
+          <label class="label">Título</label>
+          <input class="input" id="libTitle" placeholder="Ex: Aula 1 - Respiração e apoio" />
+          <label class="label">Categoria</label>
+          <input class="input" id="libCategory" placeholder="Ex: Técnica vocal, Teoria, Harmonia..." />
+          <label class="label">Conteúdo (Markdown)</label>
+          <textarea class="input" id="libContent" rows="8" placeholder="# Título&#10;&#10;Texto..."></textarea>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn primary" id="btnLibCreate">Salvar na biblioteca</button>
+            <button class="btn ghost" id="btnLibReload">Recarregar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="item-title">Itens existentes</div>
+          <div id="libList" class="list"></div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+      <div class="card">
+        <div class="item-title">Diagnóstico (Biblioteca)</div>
+        <pre id="diagLib" class="item" style="white-space:pre-wrap;overflow:auto;max-height:240px;"></pre>
+      </div>
     </section>
+
+    <!-- ================= TAB: RELATÓRIOS ================= -->
+    <section id="tab-reports" class="card hide" style="margin-top:12px;">
+      <div class="item-title">Relatórios</div>
+      <p class="muted">Resumo e export simples (visual). Depois a gente evolui para PDF/Excel.</p>
+
+      <div class="row row-2" style="margin-top:10px;">
+        <div class="card">
+          <div class="item-title">Resumo</div>
+          <div class="list">
+            <div class="item"><span class="pill">Usuários</span> <b id="repUsers">0</b></div>
+            <div class="item"><span class="pill">Cursos</span> <b id="repCourses">0</b></div>
+            <div class="item"><span class="pill">Turmas</span> <b id="repClasses">0</b></div>
+            <div class="item"><span class="pill">Matrículas</span> <b id="repEnrollments">0</b></div>
+          </div>
+          <div style="margin-top:10px;">
+            <button class="btn ghost" id="btnReportsReload">Recarregar relatórios</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="item-title">Listagens rápidas</div>
+          <div class="hr"></div>
+          <div class="item-title">Turmas</div>
+          <div id="repClassList" class="list"></div>
+          <div class="hr"></div>
+          <div class="item-title">Matrículas</div>
+          <div id="repEnrList" class="list"></div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+      <div class="card">
+        <div class="item-title">Diagnóstico (Relatórios)</div>
+        <pre id="diagRep" class="item" style="white-space:pre-wrap;overflow:auto;max-height:240px;"></pre>
+      </div>
+    </section>
+
   </main>
 
-  <script type="module" src="./js/admin.js?v=1"></script>
+  <script type="module" src="./js/admin.js?v=9"></script>
 </body>
 </html>
