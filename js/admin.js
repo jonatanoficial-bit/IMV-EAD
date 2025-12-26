@@ -1,129 +1,182 @@
 // js/admin.js
-import { requireProfileOrRedirect, adminCreateUser, logDiag, signOutNow } from "./auth.js";
+import { db, secondaryAuth } from "./firebase.js";
+import { requireRole, setStatus, setText, signOut, $ } from "./auth.js";
+
 import {
   collection,
-  getCountFromServer,
   doc,
-  getDoc
+  setDoc,
+  serverTimestamp,
+  onSnapshot,
+  query
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { db } from "./firebase.js";
 
-function first(...selectors) {
-  for (const s of selectors) {
-    const el = document.querySelector(s);
-    if (el) return el;
-  }
-  return null;
+import {
+  createUserWithEmailAndPassword,
+  signOut as fbSignOut
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+function randomPassword(len = 12) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
 }
 
-async function safeCount(colName) {
+function normalizeEmail(email) {
+  return (email || "").trim().toLowerCase();
+}
+
+function normalizeName(name) {
+  return (name || "").trim();
+}
+
+async function createUserProfile({ uid, email, name, role }) {
+  // users/{uid}
+  const ref = doc(db, "users", uid);
+  await setDoc(
+    ref,
+    {
+      email,
+      name: name || "",
+      role,
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+async function createAuthUserWithoutKickingAdmin(email, pass) {
+  // Cria usando secondaryAuth, mantendo o admin logado no auth principal
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+  const uid = cred.user.uid;
+  // importantíssimo: desloga o secondaryAuth pra não "grudar" sessão
+  await fbSignOut(secondaryAuth);
+  return uid;
+}
+
+function wireRealtimeCounters() {
+  // Contadores em tempo real
+  const usersQ = query(collection(db, "users"));
+  const coursesQ = query(collection(db, "courses"));
+  const classesQ = query(collection(db, "classes"));
+  const enrollQ = query(collection(db, "enrollments"));
+
+  onSnapshot(
+    usersQ,
+    (snap) => {
+      setText("countUsers", String(snap.size));
+      // opcional: contagem por role (se existir no html)
+      let students = 0, teachers = 0, admins = 0;
+      snap.forEach((d) => {
+        const r = d.data()?.role;
+        if (r === "student") students++;
+        else if (r === "teacher") teachers++;
+        else if (r === "admin") admins++;
+      });
+      if ($("countStudents")) setText("countStudents", String(students));
+      if ($("countTeachers")) setText("countTeachers", String(teachers));
+      if ($("countAdmins")) setText("countAdmins", String(admins));
+    },
+    (err) => setStatus(`Erro users: ${err.message}`, "err")
+  );
+
+  onSnapshot(
+    coursesQ,
+    (snap) => setText("countCourses", String(snap.size)),
+    (err) => setStatus(`Erro courses: ${err.message}`, "err")
+  );
+
+  onSnapshot(
+    classesQ,
+    (snap) => setText("countClasses", String(snap.size)),
+    (err) => setStatus(`Erro classes: ${err.message}`, "err")
+  );
+
+  onSnapshot(
+    enrollQ,
+    (snap) => setText("countEnrollments", String(snap.size)),
+    (err) => setStatus(`Erro enrollments: ${err.message}`, "err")
+  );
+}
+
+async function handleCreate(role) {
+  const nameId = role === "student" ? "studentName" : "teacherName";
+  const emailId = role === "student" ? "studentEmail" : "teacherEmail";
+  const outId = role === "student" ? "studentOut" : "teacherOut";
+
+  const name = normalizeName($(nameId)?.value);
+  const email = normalizeEmail($(emailId)?.value);
+
+  if (!email) {
+    setStatus("Email é obrigatório.", "warn");
+    return;
+  }
+
+  const pass = randomPassword(12);
+
   try {
-    const snap = await getCountFromServer(collection(db, colName));
-    return snap.data().count || 0;
+    setStatus(`Criando ${role === "student" ? "aluno" : "professor"}...`, "info");
+
+    // 1) cria no Auth sem derrubar admin
+    const uid = await createAuthUserWithoutKickingAdmin(email, pass);
+
+    // 2) cria/atualiza perfil no Firestore (users/{uid})
+    await createUserProfile({ uid, email, name, role });
+
+    // 3) UI feedback
+    if ($(outId)) {
+      $(outId).textContent =
+        `✅ Criado!\nEmail: ${email}\nSenha: ${pass}\nUID: ${uid}\nRole: ${role}`;
+    }
+
+    setStatus("Usuário criado com sucesso.", "ok");
+
+    // limpa campos
+    if ($(nameId)) $(nameId).value = "";
+    if ($(emailId)) $(emailId).value = "";
   } catch (e) {
-    return 0;
+    setStatus(`Erro ao criar: ${e.message}`, "err");
   }
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
-  const diag = first("#diagLog", "pre#diag", "pre[data-diag]");
-  const authStatus = first("#authStatus", ".auth-status");
-  const btnLogout = first("#btnLogout", "button[data-logout]", "#btnSair");
+async function boot() {
+  try {
+    const { profile } = await requireRole(["admin"]);
 
-  const countUsers = first("#countUsers", "[data-count='users']");
-  const countCourses = first("#countCourses", "[data-count='courses']");
-  const countClasses = first("#countClasses", "[data-count='classes']");
-  const countEnroll = first("#countEnrollments", "[data-count='enrollments']");
+    // topo
+    if ($("adminName")) $("adminName").textContent = profile?.name || profile?.email || "Admin";
+    if ($("adminRole")) $("adminRole").textContent = profile?.role || "admin";
 
-  const studentForm = first("#createStudentForm", "form[data-create-student]");
-  const teacherForm = first("#createTeacherForm", "form[data-create-teacher]");
+    setStatus("Autenticado.", "ok");
 
-  const studentName = first("#studentName", "input[name='studentName']");
-  const studentEmail = first("#studentEmail", "input[name='studentEmail']");
-  const teacherName = first("#teacherName", "input[name='teacherName']");
-  const teacherEmail = first("#teacherEmail", "input[name='teacherEmail']");
-
-  const studentResult = first("#studentResult", ".student-result");
-  const teacherResult = first("#teacherResult", ".teacher-result");
-
-  function setStatus(msg, ok = true) {
-    if (authStatus) {
-      authStatus.textContent = msg;
-      authStatus.style.color = ok ? "#bfffd2" : "#ffd0d0";
+    // botão sair
+    const btnOut = $("btnSignOut");
+    if (btnOut) {
+      btnOut.addEventListener("click", async () => {
+        await signOut();
+        window.location.href = "./index.html?v=" + Date.now();
+      });
     }
+
+    // botões criar
+    const btnStudent = $("btnCreateStudent");
+    if (btnStudent) btnStudent.addEventListener("click", () => handleCreate("student"));
+
+    const btnTeacher = $("btnCreateTeacher");
+    if (btnTeacher) btnTeacher.addEventListener("click", () => handleCreate("teacher"));
+
+    // contadores realtime
+    wireRealtimeCounters();
+  } catch (e) {
+    setStatus(e.message || "Não autenticado.", "err");
+    // volta pro login
+    setTimeout(() => {
+      window.location.href = "./index.html?v=" + Date.now();
+    }, 800);
   }
+}
 
-  const me = await requireProfileOrRedirect(["admin"]);
-  if (!me) return;
-
-  setStatus(`Logado como: ${me.name || me.email} • (${me.role})`, true);
-  logDiag(diag, "Admin carregado.");
-
-  if (btnLogout) {
-    btnLogout.addEventListener("click", async () => {
-      await signOutNow();
-      location.href = "index.html";
-    });
-  }
-
-  async function refreshCounts() {
-    logDiag(diag, "Atualizando contadores...");
-    const [u, c, cl, e] = await Promise.all([
-      safeCount("users"),
-      safeCount("courses"),
-      safeCount("classes"),
-      safeCount("enrollments")
-    ]);
-    if (countUsers) countUsers.textContent = u;
-    if (countCourses) countCourses.textContent = c;
-    if (countClasses) countClasses.textContent = cl;
-    if (countEnroll) countEnroll.textContent = e;
-    logDiag(diag, "Contadores OK.");
-  }
-
-  await refreshCounts();
-
-  async function createUserFlow({ name, email, role }, outEl) {
-    if (outEl) outEl.textContent = "";
-    if (!email) {
-      alert("Email obrigatório.");
-      return;
-    }
-    try {
-      logDiag(diag, `Criando ${role}: ${email}...`);
-      const created = await adminCreateUser({ name, email, role });
-      const msg = `✅ Criado!\nEmail: ${created.email}\nSenha: ${created.password}\nUID: ${created.uid}\nRole: ${created.role}`;
-      if (outEl) outEl.textContent = msg;
-      logDiag(diag, `Usuário criado: ${created.uid}`);
-      await refreshCounts();
-    } catch (e) {
-      const msg = e?.message || String(e);
-      logDiag(diag, `ERRO criar usuário: ${msg}`);
-      alert(msg);
-    }
-  }
-
-  if (studentForm) {
-    studentForm.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      await createUserFlow(
-        { name: studentName?.value || "", email: (studentEmail?.value || "").trim(), role: "student" },
-        studentResult
-      );
-      if (studentName) studentName.value = "";
-      if (studentEmail) studentEmail.value = "";
-    });
-  }
-
-  if (teacherForm) {
-    teacherForm.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      await createUserFlow(
-        { name: teacherName?.value || "", email: (teacherEmail?.value || "").trim(), role: "teacher" },
-        teacherResult
-      );
-      if (teacherName) teacherName.value = "";
-      if (teacherEmail) teacherEmail.value = "";
-    });
-  }
-});
+boot();
