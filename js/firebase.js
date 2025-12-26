@@ -1,19 +1,45 @@
 // js/firebase.js
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { initializeApp, getApps, getApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// ✅ SEU CONFIG REAL (não pode ficar "SUA_API_KEY")
-export const firebaseConfig = {
-  apiKey: "AIzaSyCSOuLs1PVG4eGn0NSNZxksJP8IqIdURrE",
-  authDomain: "imvapp-aef54.firebaseapp.com",
-  projectId: "imvapp-aef54",
-  storageBucket: "imvapp-aef54.firebasestorage.app",
-  messagingSenderId: "439661516200",
-  appId: "1:439661516200:web:2d3ede20edbb9aa6d6f99d",
-  measurementId: "G-2LEK7QDZ48"
+// >>> COLE AQUI O SEU CONFIG REAL (o que já funcionava antes) <<<
+const firebaseConfig = {
+  apiKey: "COLE_SUA_API_KEY_REAL",
+  authDomain: "COLE_SEU_AUTH_DOMAIN_REAL",
+  projectId: "COLE_SEU_PROJECT_ID_REAL",
+  storageBucket: "COLE_SEU_STORAGE_BUCKET_REAL",
+  messagingSenderId: "COLE_SEU_SENDER_ID_REAL",
+  appId: "COLE_SEU_APP_ID_REAL",
+  measurementId: "COLE_SEU_MEASUREMENT_ID_SE_TIVER"
 };
 
-export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+// App principal
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+/**
+ * Cria um "app secundário" só para cadastrar usuários sem derrubar a sessão do admin.
+ * Retorna { sApp, sAuth, cleanup() }.
+ */
+export async function createSecondaryAuth() {
+  // nome fixo pra evitar conflito
+  const name = "secondary";
+  // se já existir, apaga e recria (evita bug de estado em mobile)
+  const existing = getApps().find(a => a.name === name);
+  if (existing) {
+    try { await deleteApp(existing); } catch {}
+  }
+
+  const sApp = initializeApp(firebaseConfig, name);
+  const sAuth = getAuth(sApp);
+
+  return {
+    sApp,
+    sAuth,
+    cleanup: async () => {
+      try { await deleteApp(sApp); } catch {}
+    }
+  };
+}
