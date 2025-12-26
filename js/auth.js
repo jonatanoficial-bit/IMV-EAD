@@ -1,43 +1,66 @@
-// /js/auth.js
+// js/auth.js
 import { auth, db } from "./firebase.js";
-import {
-  onAuthStateChanged,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { onAuthStateChanged, signOut as fbSignOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-import {
-  doc,
-  getDoc,
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
-export function listenAuth(cb) {
-  return onAuthStateChanged(auth, (user) => cb(user));
+export function $(id) {
+  return document.getElementById(id);
 }
 
-export async function loadMyProfileOrThrow() {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Não autenticado.");
+export function nowISO() {
+  return new Date().toISOString();
+}
 
-  const ref = doc(db, "users", user.uid);
+export function setText(id, text) {
+  const el = $(id);
+  if (el) el.textContent = text;
+}
+
+export function setHTML(id, html) {
+  const el = $(id);
+  if (el) el.innerHTML = html;
+}
+
+export function setStatus(msg, type = "info") {
+  // type: info | ok | warn | err
+  const box = $("statusBox");
+  if (!box) return;
+  box.className = `status status--${type}`;
+  box.textContent = msg;
+}
+
+export async function getMyProfile(uid) {
+  const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    throw new Error("Perfil não encontrado em Firestore: users/{uid}.");
-  }
-
-  const data = snap.data() || {};
-  if (data.active !== true) {
-    throw new Error("Usuário inativo (active != true) no Firestore.");
-  }
-
-  const role = data.role;
-  if (!role || !["admin", "teacher", "student"].includes(role)) {
-    throw new Error('Role inválida no Firestore. Use: "admin", "teacher" ou "student".');
-  }
-
-  return { user, profile: data, role };
+  if (!snap.exists()) throw new Error("Perfil não encontrado em /users/{uid}.");
+  return snap.data();
 }
 
-export async function logout() {
-  await signOut(auth);
+export function requireRole(allowedRoles = []) {
+  return new Promise((resolve, reject) => {
+    onAuthStateChanged(auth, async (user) => {
+      try {
+        if (!user) throw new Error("Não autenticado.");
+        const profile = await getMyProfile(user.uid);
+
+        if (profile?.active === false) {
+          throw new Error("Usuário desativado (active=false).");
+        }
+        const role = profile?.role;
+        if (!role) throw new Error("Perfil sem role em /users/{uid}.");
+
+        if (allowedRoles.length && !allowedRoles.includes(role)) {
+          throw new Error(`Acesso negado. Role atual: ${role}`);
+        }
+
+        resolve({ user, profile });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+export async function signOut() {
+  await fbSignOut(auth);
 }
