@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1b2b" />
-  <title>IMV • Instituto Musical Vale</title>
+  <title>IMV • Login</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
@@ -14,112 +14,63 @@
       <div class="brand">
         <img src="./assets/logo-imv.png" alt="IMV" />
         <div class="t">
-          <div class="h">IMV • Instituto Musical Vale</div>
-          <div class="s">Portal (Aluno • Professor • Admin)</div>
+          <div class="h">IMV • Escola EAD</div>
+          <div class="s">Acesso do Admin • Professores • Alunos</div>
         </div>
       </div>
-      <div class="badge">Mobile-first • GitHub Pages</div>
+      <div class="actions">
+        <a class="chip" href="./index.html">Login</a>
+      </div>
     </div>
 
-    <div class="card">
-      <h1>Bem-vindo ao Portal IMV</h1>
-      <p>Este é o início do seu app escolar. Aqui você terá: cursos, turmas, matrículas, presença, notas e materiais — com login e controle de acesso.</p>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Entrar</h2>
+        <div class="muted">Digite seu email e senha. Você será direcionado automaticamente conforme seu perfil.</div>
 
-      <div class="roleBoxes">
-        <div class="roleBox">
-          <div class="rt">Admin</div>
-          <div class="muted">Gestão de alunos, matrículas, financeiro, contratos e professores.</div>
-        </div>
-        <div class="roleBox">
-          <div class="rt">Professor (prestador)</div>
-          <div class="muted">Turmas, alunos matriculados, presença, nota e comentário.</div>
-        </div>
-        <div class="roleBox">
-          <div class="rt">Aluno</div>
-          <div class="muted">Matrículas, histórico e evolução.</div>
-        </div>
+        <form id="loginForm" style="margin-top:12px;">
+          <div class="formRow">
+            <label>Email</label>
+            <input id="email" class="input" type="email" autocomplete="username" placeholder="email@exemplo.com" required />
+          </div>
+
+          <div class="formRow">
+            <label>Senha</label>
+            <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••" required />
+          </div>
+
+          <div class="actions" style="margin-top:12px;">
+            <button id="btnLogin" type="submit">Entrar</button>
+          </div>
+
+          <div id="msgOk" class="msg ok"></div>
+          <div id="msgErr" class="msg err"></div>
+        </form>
+
+        <hr class="sep" />
+
+        <h3 style="margin:0 0 8px;font-size:16px;">Diagnóstico (log)</h3>
+        <div class="muted">Se travar, copie o texto daqui e me mande.</div>
+        <pre id="logBox" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background: rgba(255,255,255,.03); color: rgba(233,242,255,.85); white-space:pre-wrap; word-break:break-word; min-height:110px;"></pre>
       </div>
 
-      <hr class="sep"/>
-
-      <h2 style="margin:0 0 6px;font-size:18px;">Entrar</h2>
-
-      <form id="loginForm">
-        <div class="formRow">
-          <label for="email">Email</label>
-          <input id="email" class="input" type="email" autocomplete="username" placeholder="seuemail@exemplo.com" />
+      <div class="card">
+        <h2 style="margin:0 0 10px;font-size:18px;">Checklist do login</h2>
+        <div class="muted" style="white-space:pre-wrap;">
+✅ 1) Email/senha existem no Firebase Auth
+✅ 2) Existe /users/{uid} no Firestore
+✅ 3) Esse doc tem:
+   active: true
+   role: "admin" | "teacher" | "student"
         </div>
-
-        <div class="formRow">
-          <label for="pass">Senha</label>
-          <input id="pass" class="input" type="password" autocomplete="current-password" placeholder="••••••••" />
-        </div>
-
-        <div class="actions">
-          <button id="btnLogin" type="submit">Entrar</button>
-          <button id="btnClear" class="secondary" type="button">Limpar</button>
-        </div>
-
-        <div id="msg" class="msg err"></div>
-
-        <div class="muted" style="margin-top:10px;">
-          Se der erro “perfil não encontrado”, o admin precisa criar seu perfil no Firestore em <b>users/{UID}</b> com <b>role</b>.
-        </div>
-      </form>
+        <div class="footer" style="margin-top:14px;">© IMV • Login</div>
+      </div>
     </div>
 
-    <div class="footer">© IMV • Portal EAD • Core estável</div>
+    <div class="footer">© IMV • IMV-EAD</div>
   </div>
 
-  <script type="module">
-    import { startRouter } from "./js/router.js";
-    import { login, friendlyFirebaseError, setBusy } from "./js/auth.js";
-
-    // Router (evita loop/piscar e garante redirecionamento por role)
-    startRouter();
-
-    // Service Worker (PWA) - seguro
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", async () => {
-        try { await navigator.serviceWorker.register("./sw.js"); } catch {}
-      });
-    }
-
-    const form = document.getElementById("loginForm");
-    const email = document.getElementById("email");
-    const pass = document.getElementById("pass");
-    const btn = document.getElementById("btnLogin");
-    const msg = document.getElementById("msg");
-    const btnClear = document.getElementById("btnClear");
-
-    function showError(text){
-      msg.className = "msg err";
-      msg.textContent = text;
-      msg.style.display = "block";
-    }
-    function hideMsg(){ msg.style.display = "none"; msg.textContent = ""; }
-
-    btnClear.addEventListener("click", () => {
-      email.value = "";
-      pass.value = "";
-      hideMsg();
-      email.focus();
-    });
-
-    form.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      hideMsg();
-
-      try {
-        setBusy(btn, true, "Entrar");
-        await login(email.value, pass.value);
-        // Router vai redirecionar automaticamente quando achar o profile/role
-      } catch (e) {
-        showError("Erro ao entrar: " + friendlyFirebaseError(e));
-      } finally {
-        setBusy(btn, false, "Entrar");
-      }
-    });
-  </script>
+  <!-- ✅ TEM que ser module -->
+  <script type="module" src="./js/index.js"></script>
 </body>
 </html>
