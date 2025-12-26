@@ -1,89 +1,124 @@
-// js/login.js
-import { signInEmailPassword, getMyProfile, logDiag, signOutNow } from "./auth.js";
+// /js/login.js
+import { auth } from "./firebase.js";
 import { goToRole } from "./router.js";
+import { loadMyProfileOrThrow, listenAuth } from "./auth.js";
 
-function first(...selectors) {
-  for (const s of selectors) {
-    const el = document.querySelector(s);
-    if (el) return el;
-  }
-  return null;
+import {
+  signInWithEmailAndPassword,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+function $(id) {
+  return document.getElementById(id);
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  const form =
-    first("#loginForm", "form[data-login]", "form") ||
-    null;
+function logLine(msg) {
+  const el = $("diagLog");
+  const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  if (el) el.textContent += line;
+  console.log(msg);
+}
 
-  const emailEl = first("#email", "input[name='email']", "input[type='email']");
-  const passEl  = first("#password", "input[name='password']", "input[type='password']");
-  const btnEl   = first("#btnLogin", "button[type='submit']", "button");
-  const errBox  = first("#loginError", ".login-error", "#errorBox");
-  const diagEl  = first("#diagLog", "pre#diag", "pre[data-diag]");
+function showError(message) {
+  const box = $("loginError");
+  if (!box) return;
+  box.style.display = "block";
+  box.textContent = message;
+}
 
-  function setError(msg) {
-    if (errBox) {
-      errBox.textContent = msg || "";
-      errBox.style.display = msg ? "block" : "none";
-    } else if (msg) {
-      alert(msg);
-    }
+function clearError() {
+  const box = $("loginError");
+  if (!box) return;
+  box.style.display = "none";
+  box.textContent = "";
+}
+
+function setBusy(isBusy) {
+  const btn = $("btnLogin");
+  const email = $("email");
+  const pass = $("password");
+  if (btn) btn.disabled = isBusy;
+  if (email) email.disabled = isBusy;
+  if (pass) pass.disabled = isBusy;
+}
+
+async function tryResumeSession() {
+  try {
+    logLine("Verificando sessão existente...");
+    const { role } = await loadMyProfileOrThrow();
+    logLine(`Sessão OK. Role=${role}. Redirecionando...`);
+    goToRole(role);
+  } catch (e) {
+    logLine(`Sem sessão válida agora: ${e?.message || e}`);
+  }
+}
+
+async function doLogin(email, password) {
+  clearError();
+  setBusy(true);
+
+  try {
+    logLine("Tentando login no Firebase Auth...");
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    logLine("Firebase Auth OK (email/senha). UID=" + cred.user.uid);
+
+    // Agora tenta ler o perfil (role/active) no Firestore
+    logLine("Lendo perfil do usuário (Firestore /users/{uid})...");
+    const { role } = await loadMyProfileOrThrow();
+
+    logLine(`Perfil OK. Role=${role}. Redirecionando...`);
+    goToRole(role);
+  } catch (err) {
+    const msg = (err && err.message) ? err.message : String(err);
+    logLine("ERRO: " + msg);
+    showError(msg);
+    setBusy(false);
+  }
+}
+
+function attachLoginHandler() {
+  const form = $("loginForm");
+  const emailEl = $("email");
+  const passEl = $("password");
+
+  if (!form || !emailEl || !passEl) {
+    logLine("ERRO: Elementos do login não encontrados (loginForm/email/password).");
+    showError("Erro interno: IDs do formulário não encontrados.");
+    return;
   }
 
-  async function trySession() {
-    logDiag(diagEl, "Verificando sessão existente...");
-    try {
-      // se tiver session, tenta ler profile
-      const profile = await getMyProfile();
-      logDiag(diagEl, `Sessão OK. Role: ${profile.role}`);
-      goToRole(profile.role);
-    } catch (e) {
-      logDiag(diagEl, `Sem sessão válida agora: ${e?.message || e}`);
-    }
-  }
-
-  trySession();
-
-  if (!form) return;
+  // Evita múltiplos listeners (em caso de reload parcial)
+  if (form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
 
   form.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
+    ev.preventDefault(); // ✅ evita limpar/recarregar
+    clearError();
 
-    setError("");
-    const email = (emailEl?.value || "").trim();
-    const password = (passEl?.value || "").trim();
+    const email = (emailEl.value || "").trim();
+    const password = passEl.value || "";
 
-    logDiag(diagEl, "Submit disparado (Enter ou botão).");
+    logLine("Submit disparado (Enter ou botão).");
 
     if (!email || !password) {
-      setError("Informe email e senha.");
+      showError("Preencha email e senha.");
       return;
     }
 
-    if (btnEl) btnEl.disabled = true;
-
-    try {
-      logDiag(diagEl, "Tentando login no Firebase Auth...");
-      await signInEmailPassword(email, password);
-      logDiag(diagEl, "Firebase Auth OK (email/senha).");
-
-      logDiag(diagEl, "Lendo perfil do usuário (Firestore /users/{uid})...");
-      const profile = await getMyProfile();
-      logDiag(diagEl, `Perfil OK. Role: ${profile.role}`);
-
-      goToRole(profile.role);
-    } catch (e) {
-      const msg = e?.message || String(e);
-
-      // evita loop/piscando se logou no auth mas falhou no firestore
-      try { await signOutNow(); } catch (err) {}
-
-      logDiag(diagEl, `ERRO: ${msg}`);
-      setError(msg.includes("Perfil não encontrado")
-        ? "Perfil não encontrado. O admin precisa criar seu usuário em Firestore/users."
-        : msg
-      );
-      if (btnEl) btnEl.disabled = false;
-    }
+    await doLogin(email, password);
   });
+
+  logLine("Listener do login anexado com sucesso.");
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  logLine("JS do login carregou (login.js).");
+
+  // Diagnóstico: mostra se está autenticado em tempo real
+  listenAuth((user) => {
+    if (user) logLine("onAuthStateChanged: autenticado UID=" + user.uid);
+    else logLine("onAuthStateChanged: não autenticado");
+  });
+
+  attachLoginHandler();
+  tryResumeSession();
 });
