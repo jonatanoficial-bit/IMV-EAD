@@ -1,4 +1,4 @@
-// js/auth.js — auth estável (espera onAuthStateChanged)
+// js/auth.js — auth estável no mobile (SEM cache bugado)
 import { auth, db } from "./firebase.js";
 
 import {
@@ -14,9 +14,9 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-let _authReadyPromise = null;
-let _lastUser = null;
-
+/**
+ * Em mobile, isso evita perder sessão ao recarregar.
+ */
 export async function initAuthPersistence() {
   try {
     await setPersistence(auth, browserLocalPersistence);
@@ -26,31 +26,32 @@ export async function initAuthPersistence() {
 }
 
 /**
- * ✅ Espera a autenticação ficar pronta no mobile.
- * Retorna: user (Firebase Auth user) ou null.
+ * ✅ Espera autenticação ficar disponível.
+ * - Se já existe auth.currentUser, retorna imediatamente.
+ * - Senão, espera o próximo onAuthStateChanged.
+ * - NÃO cacheia "null" (esse era o bug).
  */
-export function waitForAuthReady() {
-  if (_authReadyPromise) return _authReadyPromise;
+export function waitForAuthUser() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
 
-  _authReadyPromise = new Promise((resolve) => {
+  return new Promise((resolve) => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      _lastUser = user || null;
       unsub();
-      resolve(_lastUser);
+      resolve(user || null);
     });
   });
-
-  return _authReadyPromise;
-}
-
-export function getAuthUserNow() {
-  return auth.currentUser || _lastUser || null;
 }
 
 export async function login(email, password) {
   await initAuthPersistence();
   const cred = await signInWithEmailAndPassword(auth, email, password);
-  return cred.user;
+
+  // ✅ garante que o estado foi aplicado
+  if (cred.user) return cred.user;
+
+  // fallback (quase nunca necessário)
+  const user = await waitForAuthUser();
+  return user;
 }
 
 export async function logout() {
@@ -65,10 +66,16 @@ export async function getMyProfile(uid) {
   return { id: snap.id, ...snap.data() };
 }
 
-/** Espera auth e já devolve { uid, profile } ou joga erro */
+/**
+ * ✅ Requer usuário logado + perfil no Firestore
+ */
 export async function requireUserProfile() {
-  const user = await waitForAuthReady();
+  // primeiro tenta direto (mais rápido)
+  const userNow = auth.currentUser;
+  const user = userNow || await waitForAuthUser();
+
   if (!user) throw new Error("Não autenticado.");
+
   const profile = await getMyProfile(user.uid);
   if (!profile) throw new Error("Usuário não cadastrado no Firestore (users/{uid}).");
   if (profile.active !== true) throw new Error("Usuário inativo.");
