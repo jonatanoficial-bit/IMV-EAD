@@ -1,83 +1,109 @@
-// js/auth.js — auth estável no mobile (SEM cache bugado)
+// js/auth.js
 import { auth, db } from "./firebase.js";
-
 import {
   onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  setPersistence,
-  browserLocalPersistence
+  signOut
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-
 import {
   doc,
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-/**
- * Em mobile, isso evita perder sessão ao recarregar.
- */
-export async function initAuthPersistence() {
-  try {
-    await setPersistence(auth, browserLocalPersistence);
-  } catch {
-    // se falhar em algum navegador, segue sem quebrar
-  }
+let _sessionPromise = null;
+let _cached = { user: null, profile: null };
+
+export function resetAuthCache() {
+  _sessionPromise = null;
+  _cached = { user: null, profile: null };
+}
+
+export function requireEl(id) {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`Elemento #${id} não encontrado no DOM`);
+  return el;
+}
+
+export function logTo(preEl, ...args) {
+  const t = new Date().toLocaleTimeString();
+  const line = `[${t}] ${args.join(" ")}`;
+  console.log(line);
+  if (preEl) preEl.textContent += line + "\n";
+}
+
+export function setMsg(msgEl, text, mode = "info") {
+  if (!msgEl) return;
+  msgEl.textContent = text || "";
+  msgEl.dataset.mode = mode;
+  msgEl.style.display = text ? "block" : "none";
+}
+
+async function readProfile(uid) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Perfil não encontrado no Firestore (users/uid).");
+  return snap.data();
 }
 
 /**
- * ✅ Espera autenticação ficar disponível.
- * - Se já existe auth.currentUser, retorna imediatamente.
- * - Senão, espera o próximo onAuthStateChanged.
- * - NÃO cacheia "null" (esse era o bug).
+ * ✅ CHAVE DO “NÃO AUTENTICADO”:
+ * a gente só lê o Firestore depois que o Firebase Auth confirmou o user no onAuthStateChanged
  */
-export function waitForAuthUser() {
-  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+export function getSession(preLog = null) {
+  if (_sessionPromise) return _sessionPromise;
 
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+  _sessionPromise = new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       unsub();
-      resolve(user || null);
+
+      if (!user) {
+        _cached = { user: null, profile: null };
+        resolve(_cached);
+        return;
+      }
+
+      try {
+        const profile = await readProfile(user.uid);
+        _cached = { user, profile };
+        resolve(_cached);
+      } catch (e) {
+        logTo(preLog, "ERRO lendo perfil:", e?.message || e);
+        _cached = { user, profile: null, error: e };
+        resolve(_cached);
+      }
     });
   });
+
+  return _sessionPromise;
 }
 
-export async function login(email, password) {
-  await initAuthPersistence();
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+export async function guardPage({ allowRoles = [], redirectTo = "./index.html" } = {}, preLog = null) {
+  const s = await getSession(preLog);
+  if (!s.user) {
+    logTo(preLog, "Guard: sem sessão. Redirecionando.");
+    location.replace(redirectTo);
+    return null;
+  }
+  if (!s.profile) {
+    logTo(preLog, "Guard: sem perfil em /users. Fazendo logout.");
+    await safeLogout();
+    location.replace("./index.html?e=perfil");
+    return null;
+  }
 
-  // ✅ garante que o estado foi aplicado
-  if (cred.user) return cred.user;
+  const role = s.profile.role || "student";
+  if (allowRoles.length && !allowRoles.includes(role)) {
+    logTo(preLog, `Guard: role ${role} não permitido aqui.`);
+    location.replace("./index.html?e=permissao");
+    return null;
+  }
 
-  // fallback (quase nunca necessário)
-  const user = await waitForAuthUser();
-  return user;
+  return s;
 }
 
-export async function logout() {
-  await signOut(auth);
-  window.location.href = "./index.html";
-}
-
-/** Lê o perfil em /users/{uid} */
-export async function getMyProfile(uid) {
-  const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
-}
-
-/**
- * ✅ Requer usuário logado + perfil no Firestore
- */
-export async function requireUserProfile() {
-  // primeiro tenta direto (mais rápido)
-  const userNow = auth.currentUser;
-  const user = userNow || await waitForAuthUser();
-
-  if (!user) throw new Error("Não autenticado.");
-
-  const profile = await getMyProfile(user.uid);
-  if (!profile) throw new Error("Usuário não cadastrado no Firestore (users/{uid}).");
-  if (profile.active !== true) throw new Error("Usuário inativo.");
-  return { uid: user.uid, profile };
-}
+export async function safeLogout() {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn("Logout falhou:", e);
+  } finally {
+    resetAuthCache();
