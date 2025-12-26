@@ -2,75 +2,59 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#0b1b2b" />
-  <title>IMV • Login</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>IMV EAD</title>
+
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./css/styles.css" />
+  <meta name="theme-color" content="#0b1624" />
+
+  <link rel="stylesheet" href="./css/styles.css?v=1" />
 </head>
+
 <body>
-  <div class="container">
-    <div class="header">
+  <main class="container">
+    <header class="top">
       <div class="brand">
-        <img src="./assets/logo-imv.png" alt="IMV" />
-        <div class="t">
-          <div class="h">IMV • Escola EAD</div>
-          <div class="s">Acesso do Admin • Professores • Alunos</div>
+        <img class="logo" src="./assets/logo-imv.png" alt="IMV" />
+        <div>
+          <h1>IMV EAD</h1>
+          <p>Acesso do Admin, Professor e Aluno</p>
         </div>
       </div>
-      <div class="actions">
-        <a class="chip" href="./index.html">Login</a>
-      </div>
-    </div>
+    </header>
 
-    <div class="grid two" style="margin-top:14px;">
-      <div class="card">
-        <h2 style="margin:0 0 10px;font-size:18px;">Entrar</h2>
-        <div class="muted">Digite seu email e senha. Você será direcionado automaticamente conforme seu perfil.</div>
+    <section class="card">
+      <h2>Entrar</h2>
 
-        <form id="loginForm" style="margin-top:12px;">
-          <div class="formRow">
-            <label>Email</label>
-            <input id="email" class="input" type="email" autocomplete="username" placeholder="email@exemplo.com" required />
-          </div>
+      <!-- ✅ IDs e estrutura garantidos -->
+      <form id="loginForm" autocomplete="on" novalidate>
+        <label class="label" for="email">Email</label>
+        <input id="email" name="email" type="email" inputmode="email" autocomplete="email"
+               placeholder="seuemail@exemplo.com" required />
 
-          <div class="formRow">
-            <label>Senha</label>
-            <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••" required />
-          </div>
+        <label class="label" for="password">Senha</label>
+        <input id="password" name="password" type="password" autocomplete="current-password"
+               placeholder="********" required />
 
-          <div class="actions" style="margin-top:12px;">
-            <button id="btnLogin" type="submit">Entrar</button>
-          </div>
+        <button id="btnLogin" class="btn primary" type="submit">Entrar</button>
 
-          <div id="msgOk" class="msg ok"></div>
-          <div id="msgErr" class="msg err"></div>
-        </form>
+        <div id="loginError" class="error" style="display:none;"></div>
+      </form>
 
-        <hr class="sep" />
+      <p class="hint">
+        Se o login der erro “perfil não encontrado”, o admin precisa criar seu usuário em
+        Firestore/users.
+      </p>
+    </section>
 
-        <h3 style="margin:0 0 8px;font-size:16px;">Diagnóstico (log)</h3>
-        <div class="muted">Se travar, copie o texto daqui e me mande.</div>
-        <pre id="logBox" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background: rgba(255,255,255,.03); color: rgba(233,242,255,.85); white-space:pre-wrap; word-break:break-word; min-height:110px;"></pre>
-      </div>
+    <section class="card">
+      <h3>Diagnóstico (log)</h3>
+      <p class="hint">Se travar, copie o texto daqui e me mande.</p>
+      <pre id="diagLog" class="diag"></pre>
+    </section>
+  </main>
 
-      <div class="card">
-        <h2 style="margin:0 0 10px;font-size:18px;">Checklist do login</h2>
-        <div class="muted" style="white-space:pre-wrap;">
-✅ 1) Email/senha existem no Firebase Auth
-✅ 2) Existe /users/{uid} no Firestore
-✅ 3) Esse doc tem:
-   active: true
-   role: "admin" | "teacher" | "student"
-        </div>
-        <div class="footer" style="margin-top:14px;">© IMV • Login</div>
-      </div>
-    </div>
-
-    <div class="footer">© IMV • IMV-EAD</div>
-  </div>
-
-  <!-- ✅ TEM que ser module -->
-  <script type="module" src="./js/index.js"></script>
+  <!-- ✅ Importa o entrypoint correto -->
+  <script type="module" src="./js/index.js?v=1"></script>
 </body>
 </html>
