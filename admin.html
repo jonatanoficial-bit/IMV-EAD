@@ -1,16 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>IMV • Admin</title>
+  <title>IMV EAD • Admin</title>
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
+
 <body>
   <main class="container">
     <header class="topbar">
       <div class="topbar__left">
-        <img src="./assets/logo-imv.png" class="topbar__logo" alt="IMV" />
+        <img class="topbar__logo" src="./assets/logo-imv.png" alt="IMV" />
         <div class="topbar__meta">
           <div class="topbar__title">Painel Admin • IMV</div>
           <div class="topbar__sub">
@@ -19,79 +20,89 @@
         </div>
       </div>
 
-      <div class="topbar__right">
-        <a class="btn btn-small" href="./admin.html?v=999">Admin</a>
-        <a class="btn btn-small" href="./library.html?v=999">Biblioteca</a>
-        <a class="btn btn-small" href="./reports.html?v=999">Relatórios</a>
-        <button id="btnSignOut" class="btn btn-small">Sair</button>
+      <div class="row">
+        <div class="tabs">
+          <button class="tab active" data-tab="admin">Admin</button>
+          <button class="tab" data-tab="library">Biblioteca</button>
+          <button class="tab" data-tab="reports">Relatórios</button>
+        </div>
+        <button id="btnLogout" class="btn">Sair</button>
       </div>
     </header>
 
-    <div id="statusBox" class="status status--info">Carregando...</div>
-
-    <section class="grid grid-2">
-      <div class="card">
-        <div class="metric">
-          <div class="metric__num" id="countUsers">0</div>
-          <div class="metric__label">Usuários</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="metric">
-          <div class="metric__num" id="countCourses">0</div>
-          <div class="metric__label">Cursos</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="metric">
-          <div class="metric__num" id="countClasses">0</div>
-          <div class="metric__label">Turmas</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="metric">
-          <div class="metric__num" id="countEnrollments">0</div>
-          <div class="metric__label">Matrículas</div>
-        </div>
-      </div>
-    </section>
+    <div id="authAlert" class="alert error" style="display:none;"></div>
 
     <section class="card">
+      <div class="stats">
+        <div class="stat">
+          <div class="num" id="statUsers">0</div>
+          <div class="lbl">Usuários</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="statCourses">0</div>
+          <div class="lbl">Cursos</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="statClasses">0</div>
+          <div class="lbl">Turmas</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="statEnroll">0</div>
+          <div class="lbl">Matrículas</div>
+        </div>
+      </div>
+      <p class="help">Se aparecer “Missing or insufficient permissions”, é porque a leitura ocorreu antes do perfil/role carregar (ou role/active no Firestore está errado). O JS abaixo só deve buscar dados após autenticar.</p>
+    </section>
+
+    <section class="card" id="tab-admin">
       <h2>Cadastrar Aluno</h2>
-      <label class="field">
-        <span>Nome do aluno</span>
-        <input id="studentName" type="text" placeholder="Nome completo" />
-      </label>
-      <label class="field">
-        <span>Email do aluno (obrigatório)</span>
-        <input id="studentEmail" type="email" placeholder="email@exemplo.com" />
-      </label>
-      <button id="btnCreateStudent" class="btn btn-primary">Criar aluno</button>
-      <pre id="studentOut" class="log"></pre>
-    </section>
+      <div class="grid grid-2">
+        <label class="field">
+          <span>Nome do aluno</span>
+          <input id="studentName" placeholder="Nome completo" />
+        </label>
+        <label class="field">
+          <span>Email do aluno (obrigatório)</span>
+          <input id="studentEmail" type="email" placeholder="email@exemplo.com" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btnCreateStudent" class="btn btn-primary">Criar aluno</button>
+        <span class="help" id="createStudentMsg"></span>
+      </div>
 
-    <section class="card">
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,0.10); margin:16px 0;">
+
       <h2>Cadastrar Professor</h2>
-      <label class="field">
-        <span>Nome do professor</span>
-        <input id="teacherName" type="text" placeholder="Nome completo" />
-      </label>
-      <label class="field">
-        <span>Email do professor (obrigatório)</span>
-        <input id="teacherEmail" type="email" placeholder="email@exemplo.com" />
-      </label>
-      <button id="btnCreateTeacher" class="btn btn-primary">Criar professor</button>
-      <pre id="teacherOut" class="log"></pre>
+      <div class="grid grid-2">
+        <label class="field">
+          <span>Nome do professor</span>
+          <input id="teacherName" placeholder="Nome completo" />
+        </label>
+        <label class="field">
+          <span>Email do professor (obrigatório)</span>
+          <input id="teacherEmail" type="email" placeholder="email@exemplo.com" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btnCreateTeacher" class="btn btn-primary">Criar professor</button>
+        <span class="help" id="createTeacherMsg"></span>
+      </div>
+    </section>
+
+    <section class="card" id="tab-library" style="display:none;">
+      <h2>Biblioteca</h2>
+      <p class="help">Esta aba depende do seu <code>library.js</code>. Aqui fica só a navegação (não quebra o layout).</p>
+    </section>
+
+    <section class="card" id="tab-reports" style="display:none;">
+      <h2>Relatórios</h2>
+      <p class="help">Esta aba depende do seu <code>reports.js</code>. Aqui fica só a navegação (não quebra o layout).</p>
     </section>
 
     <section class="card">
-      <h2>Avisos</h2>
-      <p class="help">
-        Próximas etapas: matrícula/pagamentos/contratos/avisos em tempo real.
-      </p>
+      <h2>Diagnóstico (Admin)</h2>
+      <pre id="adminLog" class="log"></pre>
     </section>
   </main>
 
