@@ -1,22 +1,20 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>IMV EAD • Login</title>
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <meta name="theme-color" content="#0b1b2a" />
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 
 <body>
   <main class="container">
-    <header class="header">
-      <div class="brand">
-        <img src="./assets/logo-imv.png" class="brand__logo" alt="IMV" />
-        <div class="brand__text">
-          <h1>IMV EAD</h1>
-          <p>Acesso do Admin, Professor e Aluno</p>
+    <header class="topbar">
+      <div class="topbar__left">
+        <img class="topbar__logo" src="./assets/logo-imv.png" alt="IMV" />
+        <div class="topbar__meta">
+          <div class="topbar__title">IMV EAD</div>
+          <div class="topbar__sub">Acesso do Admin, Professor e Aluno</div>
         </div>
       </div>
     </header>
@@ -25,33 +23,38 @@
       <h2>Entrar</h2>
 
       <form id="loginForm" autocomplete="on">
-        <label class="field">
-          <span>Email</span>
-          <input id="email" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" required />
-        </label>
+        <div class="grid grid-2">
+          <label class="field">
+            <span>Email</span>
+            <input id="email" type="email" placeholder="seuemail@exemplo.com" autocomplete="email" required />
+          </label>
 
-        <label class="field">
-          <span>Senha</span>
-          <input id="password" type="password" placeholder="********" autocomplete="current-password" required />
-        </label>
+          <label class="field">
+            <span>Senha</span>
+            <input id="password" type="password" placeholder="********" autocomplete="current-password" required />
+          </label>
+        </div>
 
-        <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
-        <button id="btnClear" class="btn" type="button">Limpar</button>
+        <div class="row">
+          <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
+          <button id="btnClear" class="btn" type="button">Limpar</button>
+        </div>
+
+        <p class="help">
+          Se o login der erro “perfil não encontrado”, o admin precisa criar seu usuário em Firestore:
+          <b>/users/{uid}</b>.
+        </p>
       </form>
+    </section>
 
-      <p class="help">
-        Se o login der erro “perfil não encontrado”, o admin precisa criar seu usuário em Firestore: <b>/users/{uid}</b>.
-      </p>
-
-      <div class="diag">
-        <h3>Diagnóstico (log)</h3>
-        <p class="help">Se travar, copie o texto daqui e me mande.</p>
-        <pre id="logBox" class="log"></pre>
-      </div>
+    <section class="card">
+      <h2>Diagnóstico (log)</h2>
+      <p class="help">Se travar, copie o texto daqui e me mande.</p>
+      <pre id="logBox" class="log"></pre>
     </section>
   </main>
 
-  <!-- ✅ ÚNICO script do login (module) -->
+  <!-- ✅ IMPORTANTÍSSIMO: login.js como module -->
   <script type="module" src="./js/login.js?v=1"></script>
 </body>
 </html>
